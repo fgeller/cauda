@@ -11,14 +11,6 @@
 (defonce users (ref {}))
 (defonce queues (ref {}))
 
-(defn build-user-url [request id]
-  (java.net.URL. (format "%s://%s:%s%s/%s"
-                (name (:scheme request))
-                (:server-name request)
-                (:server-port request)
-                (:uri request)
-                (str id))))
-
 (defn check-content-type [ctx content-types]
   (if (#{:put :post} (get-in ctx [:request :request-method]))
     (or
