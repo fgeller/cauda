@@ -2,6 +2,7 @@
   (:require [liberator.core :refer [resource defresource log!]]
             [liberator.dev :refer [wrap-trace]]
             [ring.middleware.params :refer [wrap-params]]
+            [ring.middleware.jsonp :refer [wrap-json-with-padding]]
             [ring.adapter.jetty :refer [run-jetty]]
             [compojure.core :refer [defroutes ANY]]
             [clojure.java.io :as io]
@@ -61,6 +62,7 @@
             {::id id})
   :handle-ok @users)
 
+
 (defn push-into-user-queue [user-id data]
   (dosync (alter queues (fn [old-queues new-data]
                           (assoc old-queues user-id (conj (get old-queues user-id) new-data))) (get data "data")))
@@ -88,16 +90,15 @@
   :handle-ok (fn [_]
                (let [users-with-songs (select-keys @queues (for [[k v] @queues :when (> (count v) 0)] k))
                      user (rand-nth (keys users-with-songs))]
-                   (if-not (nil? user)
-                     (let [random-song (first (get @queues user))]
-                       (dosync (alter queues (fn [old] (assoc old user (vec (rest (get old user)))))))
-                       (log! :trace "took thing out of queues " @queues)
-                       random-song)))))
+                 (if-not (nil? user)
+                   (let [random-song (first (get @queues user))]
+                     (dosync (alter queues (fn [old] (assoc old user (vec (rest (get old user)))))))
+                     (log! :trace "took thing out of queues " @queues)
+                     {"data" random-song})))))
 
-(defroutes app
-  ;; (ANY "/queues/:user-id" [user-id] queue-list-resource)
-  ;; (ANY "/queues" [] queue-resource)
 
+
+(defroutes app-routes
   (ANY "/queue/pop" [] queue-resource)
   (ANY "/users/:id" [id] (user-resource id))
   (ANY "/users/:id/queue" [id] (user-queue-resource id))
@@ -105,10 +106,15 @@
   (ANY "/" [] (resource :available-media-types ["text/html"]
                         :handle-ok "<html>Hello, Internet -- cauda here.</html>")))
 
+
 (def handler
-  (-> app
+  (-> app-routes
+      (wrap-json-with-padding)
       (wrap-trace :header :ui)
       (wrap-params)))
+
+(run-jetty #'handler {:port 3000})
+
 
 ;; POST http://localhost:3000/users
 ;;    { "nick": "hans" }
@@ -127,20 +133,3 @@
 
 ;; GET http://localhost:3000/queue
 ;; [ "234234", "22222222",  "1231231223" ]
-
-
-;; (client/post "http://localhost:3000/users" {:body "{ \"name\": \"hans\" }" :content-type :json})
-;; (client/post "http://localhost:3000/users" {:body "{ \"name\": \"gerd\" }" :content-type :json})
-;; (client/get "http://localhost:3000/users")
-;; (client/get "http://localhost:3000/users/790720")
-  ;; 120  curl -H "Content-Type: application/json" -i -X POST -d '{"blubb": 23 }' localhost:3000/users
-  ;; 121  curl -X GET localhost:3000/users
-  ;; 122  curl -X GET localhost:3000/users/185927
-  ;; 123  curl -X GET localhost:3000/users
-  ;; 124  curl -H "Content-Type: application/json" -i -X POST -d '{"blubb": 23 }' localhost:3000/users
-  ;; 125  curl -X GET localhost:3000/users
-  ;; 126  curl -X GET localhost:3000/users/994684
-  ;; 127  curl -X GET localhost:3000/users/994684
-  ;; 128  history
-
-(run-jetty #'handler {:port 3000})

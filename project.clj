@@ -8,6 +8,7 @@
                  [compojure "1.1.3"]
                  [ring/ring-core "1.2.1"]
                  [ring/ring-jetty-adapter "1.1.0"]
+                 [ring.middleware.jsonp "0.1.4"]
                  [org.clojure/data.json "0.2.4"]
                  [clj-http "0.9.1"]]
   :main cauda.core)
