@@ -11,6 +11,7 @@
 
 (defonce users (ref {}))
 (defonce queues (ref {}))
+(def user-counter (atom 0))
 
 (defn check-content-type [ctx content-types]
   (if (#{:put :post} (get-in ctx [:request :request-method]))
@@ -41,13 +42,13 @@
   :available-media-types ["application/json"]
   :allowed-methods [:get :delete]
   :known-content-type? #(check-content-type % ["application/json"])
-  :exists? (fn [_] (let [user (get @users id)]
+  :exists? (fn [_] (let [user (get @users (Integer/parseInt id))]
                      (if-not (nil? user) {::user user})))
-  :existed? (fn [_] (nil? (get @users id ::sentinel)))
+  :existed? (fn [_] (nil? (get @users (Integer/parseInt id) ::sentinel)))
   :available-media-types ["application/json"]
   :malformed? #(parse-json % ::data)
   :can-put-to-missing? false
-  :delete! (fn [_] (dosync (alter users assoc id nil)))
+  :delete! (fn [_] (dosync (alter users assoc (Integer/parseInt id) nil)))
   :handle-ok ::user)
 
 (defresource user-list-resource
@@ -55,31 +56,48 @@
   :allowed-methods [:get :post]
   :known-content-type? #(check-content-type % ["application/json"])
   :malformed? #(parse-json % ::data)
-  :post! #(let [id (str (inc (rand-int 1000000)))]
-            (dosync
-             (alter users assoc id (::data %))
-             (alter queues assoc id []))
-            {::id id})
-  :handle-ok @users)
+  :post! #(dosync
+           (swap! user-counter inc)
+           (let [id @user-counter
+                 data %]
+             (println "Adding user for id " id " and data " (::data data))
+             (alter users assoc id (::data data))
+             (alter queues assoc id [])
+             {::id id}))
+  :handle-ok (fn [_]
+               (println "Listing users: " @users)
+               @users))
 
 
 (defn push-into-user-queue [user-id data]
   (dosync (alter queues (fn [old-queues new-data]
-                          (assoc old-queues user-id (conj (get old-queues user-id) new-data))) (get data "data")))
-  (log! :trace "pushed data" data " into user " user-id "'s queue " @queues)
+                          (assoc old-queues user-id (conj (get old-queues user-id) new-data))) (get data "data"))
+          (if-not (get (@users user-id) "waitingSince")
+            (do
+             (println "Adding waitingSince timestamp for user " user-id)
+             (alter users
+                    (fn [old-users timestamp]
+                      (assoc old-users
+                        user-id
+                        (assoc (get old-users user-id) "waitingSince" timestamp)))
+                    (System/currentTimeMillis))
+             (println "Updated users: " @users))))
+  (println "Pushed " (data "data") " into user " user-id "'s queue " @queues)
   user-id)
 
 (defresource user-queue-resource [id]
   :available-media-types ["application/json"]
   :allowed-methods [:get :delete :post]
   :known-content-type? #(check-content-type % ["application/json"])
-  :exists? (fn [_] (let [user (get @users id)]
+  :exists? (fn [_] (let [user (get @users (Integer/parseInt id))]
                      (if-not (nil? user) {::user user})))
-  :existed? (fn [_] (nil? (get @users id ::sentinel)))
+  :existed? (fn [_] (nil? (get @users (Integer/parseInt id) ::sentinel)))
   :available-media-types ["application/json"]
   :malformed? #(parse-json % ::data)
-  :post! #(push-into-user-queue id (::data %))
-  :handle-ok (fn [_]  (get @queues id)))
+  :post! #(push-into-user-queue (Integer/parseInt id) (::data %))
+  :handle-ok (fn [_]
+               (println "Listing queue for id " id " " @queues)
+               (get @queues (Integer/parseInt id))))
 
 
 (defresource queue-resource
@@ -88,14 +106,33 @@
   :known-content-type? #(check-content-type % ["application/json"])
   :available-media-types ["application/json"]
   :handle-ok (fn [_]
-               (let [users-with-songs (select-keys @queues (for [[k v] @queues :when (> (count v) 0)] k))
-                     user (rand-nth (keys users-with-songs))]
-                 (if-not (nil? user)
-                   (let [random-song (first (get @queues user))]
-                     (dosync (alter queues (fn [old] (assoc old user (vec (rest (get old user)))))))
-                     (log! :trace "took thing out of queues " @queues)
-                     {"data" random-song})))))
-
+               (let [users-with-values (select-keys @queues (for [[k v] @queues :when (> (count v) 0)] k))
+                     [user-id _] (reduce (fn [[last-id _] [new-id _]]
+                                              (if (or
+                                                   (nil? last-id)
+                                                   (> ((@users last-id) "waitingSince")
+                                                         ((@users new-id) "waitingSince")))
+                                                [new-id (@users new-id)]
+                                                [last-id (@users last-id)]))
+                                            [nil nil]
+                                            (seq users-with-values))]
+                 (println "Picking user-id " user-id)
+                 (if-not (nil? user-id)
+                   (let [random-value (first (get @queues user-id))]
+                     (dosync (alter queues (fn [old] (assoc old user-id (vec (rest (get old user-id))))))
+                             (do
+                               (alter users
+                                      (fn [old-users timestamp]
+                                        (println "Updating waitingSince timestamp for user " user-id " to " timestamp)
+                                        (assoc old-users
+                                          user-id
+                                          (assoc (get old-users user-id) "waitingSince" timestamp)))
+                                      (if (empty? (@queues user-id))
+                                        nil
+                                        (System/currentTimeMillis)))
+                               (println "Updated users: " @users)))
+                     (println "Popping " random-value " from user " user-id " queue:"  (@queues user-id))
+                     {"data" random-value})))))
 
 
 (defroutes app-routes
@@ -126,7 +163,7 @@
 ;; [ { "data": "234234" }]
 
 ;; POST http://localhost:3000/users/955239/queue
-;;    { "data": "song-id" }
+;;    { "data": "value" }
 
 ;; GET http://localhost:3000/queue/pop
 ;; "234234"
