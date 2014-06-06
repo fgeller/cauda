@@ -13,6 +13,73 @@
 (defonce queues (ref {}))
 (def user-counter (atom 0))
 
+(defn get-user [id]
+  (get @users id))
+
+(defn delete-user [id]
+  (println "Deleting user [" id "]")
+  (dosync (alter users dissoc id nil)))
+
+(defn add-user [data]
+  (dosync
+   (swap! user-counter inc)
+   (let [id @user-counter]
+     (println "Adding user for id " id " and data " data)
+     (alter users assoc  id data)
+     (alter queues assoc id [])
+     id)))
+
+(defn all-users [] @users)
+
+(defn all-queues [] @queues)
+
+(defn set-property-on-user [id key val]
+  (dosync
+   (alter users
+          (fn [old-users]
+            (update-in old-users [id] (fn [old-user] (update-in old-user [key] (fn [_] val))))))))
+
+(defn push-into-user-queue [id data]
+  (dosync
+   (alter queues (fn [qs] (update-in qs [id] (fn [old] (conj old data)))))))
+
+(defn update-waiting-timestamp-for-user [id timestamp]
+  (println "Updating waitingSince timestamp for user " id)
+  (set-property-on-user id "waitingSince" timestamp))
+
+(defn get-user-queue [id] ((all-queues) id))
+
+(defn queue-for-user [id data]
+  (push-into-user-queue id data)
+  (if-not ((get-user id) "waitingSince")
+    (update-waiting-timestamp-for-user id (System/currentTimeMillis)))
+  (println "Pushed [" data "] into user [" id "] queue: " (get-user-queue id)))
+
+(defn drop-first-from-users-queue [id]
+  (println "Drop element [" (first ((all-queues) id)) "] from user [" id "] queue: ")
+  (alter queues (fn [qs] (assoc qs id (vec (rest (qs id)))))))
+
+(defn find-longest-waiting-user [users]
+  (reduce (fn [last-id new-id]
+            (if (or
+                 (nil? last-id)
+                 (> ((get-user last-id) "waitingSince") ((get-user new-id) "waitingSince")))
+              new-id
+              last-id))
+          nil
+          (seq users)))
+
+(defn find-next-song []
+  (let [users-with-values (select-keys (all-queues) (for [[k v] (all-queues) :when (not (empty? v))] k))
+        id (find-longest-waiting-user (keys users-with-values))]
+    (println "Picking user-id " id)
+    (if-not (nil? id)
+      (let [random-value (first (get-user-queue id))
+            new-timestamp (if (= 1 (count (get-user-queue id))) nil (System/currentTimeMillis))]
+        (dosync (drop-first-from-users-queue id)
+                (update-waiting-timestamp-for-user id new-timestamp))
+        {"data" random-value}))))
+
 (defn check-content-type [ctx content-types]
   (if (#{:put :post} (get-in ctx [:request :request-method]))
     (or
@@ -42,13 +109,13 @@
   :available-media-types ["application/json"]
   :allowed-methods [:get :delete]
   :known-content-type? #(check-content-type % ["application/json"])
-  :exists? (fn [_] (let [user (get @users (Integer/parseInt id))]
+  :exists? (fn [_] (let [user (get-user id)]
                      (if-not (nil? user) {::user user})))
-  :existed? (fn [_] (nil? (get @users (Integer/parseInt id) ::sentinel)))
+  :existed? (fn [_] (nil? (get-user id)))
   :available-media-types ["application/json"]
   :malformed? #(parse-json % ::data)
   :can-put-to-missing? false
-  :delete! (fn [_] (dosync (alter users assoc (Integer/parseInt id) nil)))
+  :delete! (fn [_] (delete-user id))
   :handle-ok ::user)
 
 (defresource user-list-resource
@@ -56,89 +123,37 @@
   :allowed-methods [:get :post]
   :known-content-type? #(check-content-type % ["application/json"])
   :malformed? #(parse-json % ::data)
-  :post! #(dosync
-           (swap! user-counter inc)
-           (let [id @user-counter
-                 data %]
-             (println "Adding user for id " id " and data " (::data data))
-             (alter users assoc id (::data data))
-             (alter queues assoc id [])
-             {::id id}))
+  :post! (fn [data] {::id (add-user (::data data))})
   :handle-ok (fn [_]
-               (println "Listing users: " @users)
-               @users))
-
-
-(defn push-into-user-queue [user-id data]
-  (dosync (alter queues (fn [old-queues new-data]
-                          (assoc old-queues user-id (conj (get old-queues user-id) new-data))) (get data "data"))
-          (if-not (get (@users user-id) "waitingSince")
-            (do
-             (println "Adding waitingSince timestamp for user " user-id)
-             (alter users
-                    (fn [old-users timestamp]
-                      (assoc old-users
-                        user-id
-                        (assoc (get old-users user-id) "waitingSince" timestamp)))
-                    (System/currentTimeMillis))
-             (println "Updated users: " @users))))
-  (println "Pushed " (data "data") " into user " user-id "'s queue " @queues)
-  user-id)
+               (let [users (all-users)]
+                 (println "Listing users: " users)
+                 users)))
 
 (defresource user-queue-resource [id]
   :available-media-types ["application/json"]
   :allowed-methods [:get :delete :post]
   :known-content-type? #(check-content-type % ["application/json"])
-  :exists? (fn [_] (let [user (get @users (Integer/parseInt id))]
+  :exists? (fn [_] (let [user (get-user id)]
                      (if-not (nil? user) {::user user})))
-  :existed? (fn [_] (nil? (get @users (Integer/parseInt id) ::sentinel)))
+  :existed? (fn [_] (nil? (get-user id)))
   :available-media-types ["application/json"]
   :malformed? #(parse-json % ::data)
-  :post! #(push-into-user-queue (Integer/parseInt id) (::data %))
+  :post! #(queue-for-user id ((::data %) "data"))
   :handle-ok (fn [_]
-               (println "Listing queue for id " id " " @queues)
-               (get @queues (Integer/parseInt id))))
-
+               (println "Listing queue for id " id " " (all-queues))
+               (get-user-queue id)))
 
 (defresource queue-resource
   :available-media-types ["application/json"]
   :allowed-methods [:get]
   :known-content-type? #(check-content-type % ["application/json"])
   :available-media-types ["application/json"]
-  :handle-ok (fn [_]
-               (let [users-with-values (select-keys @queues (for [[k v] @queues :when (> (count v) 0)] k))
-                     [user-id _] (reduce (fn [[last-id _] [new-id _]]
-                                              (if (or
-                                                   (nil? last-id)
-                                                   (> ((@users last-id) "waitingSince")
-                                                         ((@users new-id) "waitingSince")))
-                                                [new-id (@users new-id)]
-                                                [last-id (@users last-id)]))
-                                            [nil nil]
-                                            (seq users-with-values))]
-                 (println "Picking user-id " user-id)
-                 (if-not (nil? user-id)
-                   (let [random-value (first (get @queues user-id))]
-                     (dosync (alter queues (fn [old] (assoc old user-id (vec (rest (get old user-id))))))
-                             (do
-                               (alter users
-                                      (fn [old-users timestamp]
-                                        (println "Updating waitingSince timestamp for user " user-id " to " timestamp)
-                                        (assoc old-users
-                                          user-id
-                                          (assoc (get old-users user-id) "waitingSince" timestamp)))
-                                      (if (empty? (@queues user-id))
-                                        nil
-                                        (System/currentTimeMillis)))
-                               (println "Updated users: " @users)))
-                     (println "Popping " random-value " from user " user-id " queue:"  (@queues user-id))
-                     {"data" random-value})))))
-
+  :handle-ok (fn [_] (find-next-song)))
 
 (defroutes app-routes
   (ANY "/queue/pop" [] queue-resource)
-  (ANY "/users/:id" [id] (user-resource id))
-  (ANY "/users/:id/queue" [id] (user-queue-resource id))
+  (ANY "/users/:id" [id] (user-resource (Integer/parseInt id)))
+  (ANY "/users/:id/queue" [id] (user-queue-resource (Integer/parseInt id)))
   (ANY "/users" [] user-list-resource)
   (ANY "/" [] (resource :available-media-types ["text/html"]
                         :handle-ok "<html>Hello, Internet -- cauda here.</html>")))
@@ -151,22 +166,3 @@
       (wrap-params)))
 
 (run-jetty #'handler {:port 3000})
-
-
-;; POST http://localhost:3000/users
-;;    { "nick": "hans" }
-
-;; GET http://localhost:3000/users
-;;    {"955239":{"nick":"hans"}}
-
-;; GET http://localhost:3000/users/955239/queue
-;; [ { "data": "234234" }]
-
-;; POST http://localhost:3000/users/955239/queue
-;;    { "data": "value" }
-
-;; GET http://localhost:3000/queue/pop
-;; "234234"
-
-;; GET http://localhost:3000/queue
-;; [ "234234", "22222222",  "1231231223" ]
