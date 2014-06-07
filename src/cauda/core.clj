@@ -69,7 +69,7 @@
           nil
           (seq users)))
 
-(defn find-next-song []
+(defn find-next-value []
   (let [users-with-values (select-keys (all-queues) (for [[k v] (all-queues) :when (not (empty? v))] k))
         id (find-longest-waiting-user (keys users-with-values))]
     (println "Picking user-id " id)
@@ -105,7 +105,7 @@
         (.printStackTrace e)
         {:message (format "IOException: " (.getMessage e))}))))
 
-(defresource user-resource [id]
+(defresource user-by-id-resource [id]
   :available-media-types ["application/json"]
   :allowed-methods [:get :delete]
   :known-content-type? #(check-content-type % ["application/json"])
@@ -118,7 +118,7 @@
   :delete! (fn [_] (delete-user id))
   :handle-ok ::user)
 
-(defresource user-list-resource
+(defresource users-resource
   :available-media-types ["application/json"]
   :allowed-methods [:get :post]
   :known-content-type? #(check-content-type % ["application/json"])
@@ -126,7 +126,7 @@
   :post! (fn [data] {::id (add-user (::data data))})
   :handle-ok (fn [_] (let [users (all-users)] users)))
 
-(defresource user-queue-resource [id]
+(defresource users-queue-resource [id]
   :available-media-types ["application/json"]
   :allowed-methods [:get :delete :post]
   :known-content-type? #(check-content-type % ["application/json"])
@@ -138,21 +138,20 @@
   :post! #(queue-for-user id ((::data %) "data"))
   :handle-ok (fn [_] (get-user-queue id)))
 
-(defresource queue-resource
+(defresource queue-pop-resource
   :available-media-types ["application/json"]
   :allowed-methods [:get]
   :known-content-type? #(check-content-type % ["application/json"])
   :available-media-types ["application/json"]
-  :handle-ok (fn [_] (find-next-song)))
+  :handle-ok (fn [_] (find-next-value)))
 
 (defroutes app-routes
-  (ANY "/queue/pop" [] queue-resource)
-  (ANY "/users/:id" [id] (user-resource (Integer/parseInt id)))
-  (ANY "/users/:id/queue" [id] (user-queue-resource (Integer/parseInt id)))
-  (ANY "/users" [] user-list-resource)
+  (ANY "/queue/pop" [] queue-pop-resource)
+  (ANY "/users/:id" [id] (user-by-id-resource (Integer/parseInt id)))
+  (ANY "/users/:id/queue" [id] (users-queue-resource (Integer/parseInt id)))
+  (ANY "/users" [] users-resource)
   (ANY "/" [] (resource :available-media-types ["text/html"]
                         :handle-ok "<html>Hello, Internet -- cauda here.</html>")))
-
 
 (def handler
   (-> app-routes
