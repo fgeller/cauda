@@ -124,10 +124,7 @@
   :known-content-type? #(check-content-type % ["application/json"])
   :malformed? #(parse-json % ::data)
   :post! (fn [data] {::id (add-user (::data data))})
-  :handle-ok (fn [_]
-               (let [users (all-users)]
-                 (println "Listing users: " users)
-                 users)))
+  :handle-ok (fn [_] (let [users (all-users)] users)))
 
 (defresource user-queue-resource [id]
   :available-media-types ["application/json"]
@@ -139,9 +136,7 @@
   :available-media-types ["application/json"]
   :malformed? #(parse-json % ::data)
   :post! #(queue-for-user id ((::data %) "data"))
-  :handle-ok (fn [_]
-               (println "Listing queue for id " id " " (all-queues))
-               (get-user-queue id)))
+  :handle-ok (fn [_] (get-user-queue id)))
 
 (defresource queue-resource
   :available-media-types ["application/json"]
