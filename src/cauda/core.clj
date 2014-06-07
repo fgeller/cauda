@@ -83,7 +83,7 @@
   (let [non-empty-users-queues (select-keys (all-queues) (for [[k v] (all-queues) :when (not (empty? v))] k))
         longest-waiting-users (find-longest-waiting-users (all-users) (count (all-users)))
         sorted-users-queues (map #(non-empty-users-queues %) longest-waiting-users)
-        max-queue-length (reduce (fn [old-max q] (if (< old-max (count q)) (count q) old-max)) 0 sorted-users-queues)
+        max-queue-length (reduce max 0 (map count sorted-users-queues))
         flattened-queue (filter identity (acc-helper max-queue-length sorted-users-queues nil))]
     (println "Found next " value-count " values to be " (take value-count flattened-queue))
     {"data" (take value-count flattened-queue)}))
