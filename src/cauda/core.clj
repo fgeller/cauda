@@ -59,19 +59,14 @@
   (println "Drop element [" (first ((all-queues) id)) "] from user [" id "] queue: ")
   (alter queues (fn [qs] (assoc qs id (vec (rest (qs id)))))))
 
-(defn find-longest-waiting-user [users]
-  (reduce (fn [last-id new-id]
-            (if (or
-                 (nil? last-id)
-                 (> ((users last-id) "waitingSince") ((users new-id) "waitingSince")))
-              new-id
-              last-id))
-          nil
-          (seq (keys users))))
+(defn find-longest-waiting-users [users user-count]
+  (take user-count
+        (map (fn [[id _]] id)
+             (sort-by (fn [[_ user]] (user "waitingSince")) (seq users)))))
 
 (defn find-next-value []
   (let [users-with-values (select-keys (all-queues) (for [[k v] (all-queues) :when (not (empty? v))] k))
-        id (find-longest-waiting-user users-with-values)]
+        id (first (find-longest-waiting-users users-with-values 1))]
     (println "Picking user-id " id)
     (if-not (nil? id)
       (let [random-value (first (get-user-queue id))
@@ -79,6 +74,19 @@
         (dosync (drop-first-from-users-queue id)
                 (update-waiting-timestamp-for-user id new-timestamp))
         {"data" random-value}))))
+
+(defn acc-helper [count queues acc]
+  (if (= count 0) acc
+      (acc-helper (dec count) (map rest queues) (concat acc (map first queues)))))
+
+(defn find-next-values [value-count]
+  (let [non-empty-users-queues (select-keys (all-queues) (for [[k v] (all-queues) :when (not (empty? v))] k))
+        longest-waiting-users (find-longest-waiting-users (all-users) (count (all-users)))
+        sorted-users-queues (map #(non-empty-users-queues %) longest-waiting-users)
+        max-queue-length (reduce (fn [old-max q] (if (< old-max (count q)) (count q) old-max)) 0 sorted-users-queues)
+        flattened-queue (filter identity (acc-helper max-queue-length sorted-users-queues nil))]
+    (println "Found next " value-count " values to be " (take value-count flattened-queue))
+    {"data" (take value-count flattened-queue)}))
 
 (defn check-content-type [ctx content-types]
   (if (#{:put :post} (get-in ctx [:request :request-method]))
@@ -145,7 +153,15 @@
   :available-media-types ["application/json"]
   :handle-ok (fn [_] (find-next-value)))
 
+(defresource queue-resource
+  :available-media-types ["application/json"]
+  :allowed-methods [:get]
+  :known-content-type? #(check-content-type % ["application/json"])
+  :available-media-types ["application/json"]
+  :handle-ok (fn [_] (find-next-values 5)))
+
 (defroutes app-routes
+  (ANY "/queue" [] queue-resource)
   (ANY "/queue/pop" [] queue-pop-resource)
   (ANY "/users/:id" [id] (user-by-id-resource (Integer/parseInt id)))
   (ANY "/users/:id/queue" [id] (users-queue-resource (Integer/parseInt id)))
