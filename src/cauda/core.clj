@@ -63,15 +63,15 @@
   (reduce (fn [last-id new-id]
             (if (or
                  (nil? last-id)
-                 (> ((get-user last-id) "waitingSince") ((get-user new-id) "waitingSince")))
+                 (> ((users last-id) "waitingSince") ((users new-id) "waitingSince")))
               new-id
               last-id))
           nil
-          (seq users)))
+          (seq (keys users))))
 
 (defn find-next-value []
   (let [users-with-values (select-keys (all-queues) (for [[k v] (all-queues) :when (not (empty? v))] k))
-        id (find-longest-waiting-user (keys users-with-values))]
+        id (find-longest-waiting-user users-with-values)]
     (println "Picking user-id " id)
     (if-not (nil? id)
       (let [random-value (first (get-user-queue id))
