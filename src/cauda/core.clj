@@ -11,6 +11,7 @@
 
 (defonce users (ref {}))
 (defonce queues (ref {}))
+(defonce vetos (ref {}))
 (def user-counter (atom 0))
 
 (defn get-user [id]
@@ -49,11 +50,25 @@
 
 (defn get-user-queue [id] ((all-queues) id))
 
+(defn now [] (System/currentTimeMillis))
+
 (defn queue-for-user [id data]
   (push-into-user-queue id data)
   (if-not ((get-user id) "waitingSince")
-    (update-waiting-timestamp-for-user id (System/currentTimeMillis)))
+    (update-waiting-timestamp-for-user id (now)))
   (println "Pushed [" data "] into user [" id "] queue: " (get-user-queue id)))
+
+;; http://localhost:3000/users/1/veto
+;; { "data": { "targetUser": 2, "value": "something" }}
+;; { "waitingSince" nil "vetos" { 23 { "value" "ID" "validUntil" 11111 }} }
+(defn apply-users-veto [id data]
+  (let [vetoing-user (get-user id)
+        target-user (data "targetUser")
+        target-value (data "value")
+        vetos (vetoing-user "vetos")]
+    (if (or (nil? vetos) (nil? (vetos target-user)) (< ((vetos target-user) "validUntil") (now)))
+      (let [new-vetos (update-in vetos [target-user] (fn [_] {"validUntil" (+ (now) (* 1000 60 60 24)) "value" target-value}))]
+        (set-property-on-user id "vetos" new-vetos)))))
 
 (defn drop-first-from-users-queue [id]
   (println "Drop element [" (first ((all-queues) id)) "] from user [" id "] queue: ")
@@ -70,7 +85,7 @@
     (println "Picking user-id " id)
     (if-not (nil? id)
       (let [random-value (first (get-user-queue id))
-            new-timestamp (if (= 1 (count (get-user-queue id))) nil (System/currentTimeMillis))]
+            new-timestamp (if (= 1 (count (get-user-queue id))) nil (now))]
         (dosync (drop-first-from-users-queue id)
                 (update-waiting-timestamp-for-user id new-timestamp))
         {"data" random-value}))))
@@ -146,6 +161,18 @@
   :post! #(queue-for-user id ((::data %) "data"))
   :handle-ok (fn [_] (get-user-queue id)))
 
+(defresource users-veto-resource [id]
+  :available-media-types ["application/json"]
+  :allowed-methods [:post]
+  :known-content-type? #(check-content-type % ["application/json"])
+  :exists? (fn [_] (let [user (get-user id)]
+                     (if-not (nil? user) {::user user})))
+  :existed? (fn [_] (nil? (get-user id)))
+  :available-media-types ["application/json"]
+  :malformed? #(parse-json % ::data)
+  :post! #(apply-users-veto id ((::data %) "data"))
+  :handle-ok (fn [_] nil))
+
 (defresource queue-pop-resource
   :available-media-types ["application/json"]
   :allowed-methods [:get]
@@ -163,8 +190,9 @@
 (defroutes app-routes
   (ANY "/queue" [] queue-resource)
   (ANY "/queue/pop" [] queue-pop-resource)
-  (ANY "/users/:id" [id] (user-by-id-resource (Integer/parseInt id)))
-  (ANY "/users/:id/queue" [id] (users-queue-resource (Integer/parseInt id)))
+  (ANY "/users/:id" [id] (user-by-id-resource (Long/parseLong id)))
+  (ANY "/users/:id/queue" [id] (users-queue-resource (Long/parseLong id)))
+  (ANY "/users/:id/veto" [id] (users-veto-resource (Long/parseLong id)))
   (ANY "/users" [] users-resource)
   (ANY "/" [] (resource :available-media-types ["text/html"]
                         :handle-ok "<html>Hello, Internet -- cauda here.</html>")))
