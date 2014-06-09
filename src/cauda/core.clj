@@ -80,15 +80,15 @@
              (sort-by (fn [[_ user]] (user "waitingSince")) (seq users)))))
 
 (defn find-next-value []
-  (let [users-with-values (select-keys (all-queues) (for [[k v] (all-queues) :when (not (empty? v))] k))
-        id (first (find-longest-waiting-users users-with-values 1))]
+  (let [users-with-values (select-keys (all-queues) (for [[k v] (all-queues) :when (not (empty? v))] k))]
+    (let [id (first (find-longest-waiting-users (select-keys (all-users) (for [[k v] (all-users) :when (not (empty? (users-with-values k)))] k)) 1))]
     (println "Picking user-id " id)
     (if-not (nil? id)
       (let [random-value (first (get-user-queue id))
             new-timestamp (if (= 1 (count (get-user-queue id))) nil (now))]
         (dosync (drop-first-from-users-queue id)
                 (update-waiting-timestamp-for-user id new-timestamp))
-        {"data" random-value}))))
+        {"data" random-value})))))
 
 (defn acc-helper [count queues acc]
   (if (= count 0) acc
