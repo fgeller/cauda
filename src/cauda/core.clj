@@ -13,6 +13,7 @@
 (defonce queues (ref {}))
 (defonce vetos (ref {}))
 (def user-counter (atom 0))
+(def last-pop (atom nil))
 
 (defn get-user [id]
   (get @users id))
@@ -86,8 +87,10 @@
     (if-not (nil? id)
       (let [random-value (first (get-user-queue id))
             new-timestamp (if (= 1 (count (get-user-queue id))) nil (now))]
-        (dosync (drop-first-from-users-queue id)
-                (update-waiting-timestamp-for-user id new-timestamp))
+        (dosync
+         (swap! last-pop (fn [_] random-value))
+         (drop-first-from-users-queue id)
+         (update-waiting-timestamp-for-user id new-timestamp))
         {"data" random-value})))))
 
 (defn acc-helper [count queues acc]
@@ -180,6 +183,13 @@
   :available-media-types ["application/json"]
   :handle-ok (fn [_] (find-next-value)))
 
+(defresource queue-last-pop-resource
+  :available-media-types ["application/json"]
+  :allowed-methods [:get]
+  :known-content-type? #(check-content-type % ["application/json"])
+  :available-media-types ["application/json"]
+  :handle-ok (fn [_] {"data" @last-pop}))
+
 (defresource queue-resource
   :available-media-types ["application/json"]
   :allowed-methods [:get]
@@ -190,6 +200,7 @@
 (defroutes app-routes
   (ANY "/queue" [] queue-resource)
   (ANY "/queue/pop" [] queue-pop-resource)
+  (ANY "/queue/last-pop" [] queue-last-pop-resource)
   (ANY "/users/:id" [id] (user-by-id-resource (Long/parseLong id)))
   (ANY "/users/:id/queue" [id] (users-queue-resource (Long/parseLong id)))
   (ANY "/users/:id/veto" [id] (users-veto-resource (Long/parseLong id)))
