@@ -1,9 +1,5 @@
 (ns cauda.core
   (:require [liberator.core :refer [resource defresource log!]]
-            [liberator.dev :refer [wrap-trace]]
-            [ring.middleware.params :refer [wrap-params]]
-            [ring.middleware.jsonp :refer [wrap-json-with-padding]]
-            [ring.adapter.jetty :refer [run-jetty]]
             [compojure.core :refer [defroutes ANY]]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
@@ -207,11 +203,3 @@
   (ANY "/users" [] users-resource)
   (ANY "/" [] (resource :available-media-types ["text/html"]
                         :handle-ok "<html>Hello, Internet -- cauda here.</html>")))
-
-(def handler
-  (-> app-routes
-      (wrap-json-with-padding)
-      (wrap-trace :header :ui)
-      (wrap-params)))
-
-(run-jetty #'handler {:port 3000})
