@@ -7,4 +7,6 @@
                  [ring.middleware.jsonp "0.1.4"]
                  [org.clojure/data.json "0.2.4"]
                  [clj-http "0.9.1"]]
+  :profiles
+  {:dev {:dependencies [[ring-mock "0.1.5"]]}}
   :main cauda.app)
