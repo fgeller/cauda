@@ -11,6 +11,8 @@
 (def user-counter (atom 0))
 (def last-pop (atom nil))
 
+(defn now [] (System/currentTimeMillis))
+
 (defn get-user [id]
   (get @users id))
 
@@ -46,8 +48,6 @@
   (set-property-on-user id "waitingSince" timestamp))
 
 (defn get-user-queue [id] ((all-queues) id))
-
-(defn now [] (System/currentTimeMillis))
 
 (defn queue-for-user [id data]
   (push-into-user-queue id data)
