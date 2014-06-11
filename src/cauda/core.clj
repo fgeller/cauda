@@ -87,7 +87,7 @@
          (swap! last-pop (fn [_] random-value))
          (drop-first-from-users-queue id)
          (update-waiting-timestamp-for-user id new-timestamp))
-        {"data" random-value}))))
+        random-value))))
 
 (defn acc-helper [count queues acc]
   (if (= count 0) acc
@@ -100,7 +100,7 @@
         max-queue-length (reduce max 0 (map count sorted-users-queues))
         flattened-queue (filter identity (acc-helper max-queue-length sorted-users-queues nil))]
     (println "Found next " value-count " values to be " (take value-count flattened-queue))
-    {"data" (take value-count flattened-queue)}))
+    (take value-count flattened-queue)))
 
 (defn check-content-type [ctx content-types]
   (if (#{:put :post} (get-in ctx [:request :request-method]))
@@ -177,7 +177,7 @@
   :allowed-methods [:get]
   :known-content-type? #(check-content-type % ["application/json"])
   :available-media-types ["application/json"]
-  :handle-ok (fn [_] (find-next-value)))
+  :handle-ok (fn [_] {"data" (find-next-value)}))
 
 (defresource queue-last-pop-resource
   :available-media-types ["application/json"]
@@ -191,7 +191,7 @@
   :allowed-methods [:get]
   :known-content-type? #(check-content-type % ["application/json"])
   :available-media-types ["application/json"]
-  :handle-ok (fn [_] (find-next-values 5)))
+  :handle-ok (fn [_] {"data" (find-next-values 5)}))
 
 (defroutes app-routes
   (ANY "/queue" [] queue-resource)
