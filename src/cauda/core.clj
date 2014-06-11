@@ -33,6 +33,15 @@
 
 (defn all-queues [] @queues)
 
+(defn all-active-vetos []
+  (let [vetos (filter identity (map (fn [[_ u]] (u "vetos")) (all-users)))
+        active-vetos (flatten (map (fn [veto]
+                                     (let [veto-target (first (keys veto))
+                                           veto-info (veto veto-target)]
+                                       (if (> (veto-info "validUntil") (now)) veto-target)))
+                                   vetos))]
+    active-vetos))
+
 (defn set-property-on-user [id key val]
   (dosync
    (alter users
@@ -56,15 +65,13 @@
   (println "Pushed [" data "] into user [" id "] queue: " (get-user-queue id)))
 
 ;; http://localhost:3000/users/1/veto
-;; { "data": { "targetUser": 2, "value": "something" }}
-;; { "waitingSince" nil "vetos" { 23 { "value" "ID" "validUntil" 11111 }} }
-(defn apply-users-veto [id data]
+;; { "data": "something" }
+;; { "waitingSince" nil "vetos" { "something" { "validUntil" 11111 }} }
+(defn apply-users-veto [id target-value]
   (let [vetoing-user (get-user id)
-        target-user (data "targetUser")
-        target-value (data "value")
         vetos (vetoing-user "vetos")]
-    (if (or (nil? vetos) (nil? (vetos target-user)) (< ((vetos target-user) "validUntil") (now)))
-      (let [new-vetos (update-in vetos [target-user] (fn [_] {"validUntil" (+ (now) (* 1000 60 60 24)) "value" target-value}))]
+    (if (or (nil? vetos) (nil? (vetos target-value)) (< ((vetos target-value) "validUntil") (now)))
+      (let [new-vetos (update-in vetos [target-value] (fn [_] {"validUntil" (+ (now) (* 1000 60 60 24))}))]
         (set-property-on-user id "vetos" new-vetos)))))
 
 (defn drop-first-from-users-queue [id]
@@ -97,8 +104,12 @@
   (let [non-empty-users-queues (select-keys (all-queues) (for [[k v] (all-queues) :when (not (empty? v))] k))
         longest-waiting-users (find-longest-waiting-users (all-users) (count (all-users)))
         sorted-users-queues (map #(non-empty-users-queues %) longest-waiting-users)
-        max-queue-length (reduce max 0 (map count sorted-users-queues))
-        flattened-queue (filter identity (acc-helper max-queue-length sorted-users-queues nil))]
+        active-vetos (all-active-vetos)
+        filtered-users-queues (map (fn [queue] (filter (fn [value] (not (some (fn [v] (= v value)) active-vetos)))
+                                                       queue))
+                                   sorted-users-queues)
+        max-queue-length (reduce max 0 (map count filtered-users-queues))
+        flattened-queue (filter identity (acc-helper max-queue-length filtered-users-queues nil))]
     (println "Found next " value-count " values to be " (take value-count flattened-queue))
     (take value-count flattened-queue)))
 
@@ -146,7 +157,14 @@
   :known-content-type? #(check-content-type % ["application/json"])
   :malformed? #(parse-json % ::data)
   :post! (fn [data] {::id (add-user (::data data))})
-  :handle-ok (fn [_] (let [users (all-users)] users)))
+  :handle-ok (fn [_] (all-users)))
+
+(defresource vetos-resource
+  :available-media-types ["application/json"]
+  :allowed-methods [:get]
+  :known-content-type? #(check-content-type % ["application/json"])
+  :malformed? #(parse-json % ::data)
+  :handle-ok (fn [_] (all-active-vetos)))
 
 (defresource users-queue-resource [id]
   :available-media-types ["application/json"]
@@ -201,5 +219,6 @@
   (ANY "/users/:id/queue" [id] (users-queue-resource (Long/parseLong id)))
   (ANY "/users/:id/veto" [id] (users-veto-resource (Long/parseLong id)))
   (ANY "/users" [] users-resource)
+  (ANY "/vetos" [] vetos-resource)
   (ANY "/" [] (resource :available-media-types ["text/html"]
                         :handle-ok "<html>Hello, Internet -- cauda here.</html>")))
