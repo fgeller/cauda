@@ -90,12 +90,12 @@
   (let [longest-waiting-users (find-longest-waiting-users (all-users) (count (all-users)))
         sorted-users-queues (map (fn [id] [id (get-user-queue id)]) longest-waiting-users)
         active-vetos (all-active-vetos)
-        filtered-users-queues (map (fn [queue] (filter (fn [value] (not (some (fn [v] (= v value)) active-vetos)))
+        filtered-users-queues (map (fn [queue] (filter (fn [value] (not (some #(= % value) active-vetos)))
                                                        queue))
                                    sorted-users-queues)
         max-queue-length (reduce max 0 (map count filtered-users-queues))
-        x (flatten-user-queues max-queue-length filtered-users-queues nil)
-        flattened-queue (filter (fn [[_ queue]] queue) x)]
+        padded-flattened-queues (flatten-user-queues max-queue-length filtered-users-queues nil)
+        flattened-queue (filter (fn [[_ queue]] queue) padded-flattened-queues)]
     (println "Found next " value-count " values to be " (take value-count flattened-queue))
     (take value-count flattened-queue)))
 
