@@ -80,35 +80,34 @@
         (map (fn [[id _]] id)
              (sort-by (fn [[_ user]] (user "waitingSince")) (seq users)))))
 
-(defn find-next-value []
-  (let [non-empty-users-queues (select-keys (all-queues) (for [[k v] (all-queues) :when (not (empty? v))] k))
-        id (first (find-longest-waiting-users (select-keys (all-users) (for [[k v] (all-users) :when (not (empty? (non-empty-users-queues k)))] k)) 1))]
-    (println "Picking user-id " id)
-    (if id
-      (let [random-value (first (get-user-queue id))
-            new-timestamp (if (= 1 (count (get-user-queue id))) nil (now))]
-        (dosync
-         (swap! last-pop (fn [_] random-value))
-         (drop-first-from-users-queue id)
-         (update-waiting-timestamp-for-user id new-timestamp))
-        random-value))))
-
-(defn acc-helper [count queues acc]
+(defn flatten-user-queues [count queues acc]
   (if (= count 0) acc
-      (acc-helper (dec count) (map rest queues) (concat acc (map first queues)))))
+      (flatten-user-queues (dec count)
+                  (map (fn [[id queue]] [id (rest queue)]) queues)
+                  (concat acc (map (fn [[id queue]] [id (first queue)]) queues)))))
 
 (defn find-next-values [value-count]
-  (let [non-empty-users-queues (select-keys (all-queues) (for [[k v] (all-queues) :when (not (empty? v))] k))
-        longest-waiting-users (find-longest-waiting-users (all-users) (count (all-users)))
-        sorted-users-queues (map #(non-empty-users-queues %) longest-waiting-users)
+  (let [longest-waiting-users (find-longest-waiting-users (all-users) (count (all-users)))
+        sorted-users-queues (map (fn [id] [id (get-user-queue id)]) longest-waiting-users)
         active-vetos (all-active-vetos)
         filtered-users-queues (map (fn [queue] (filter (fn [value] (not (some (fn [v] (= v value)) active-vetos)))
                                                        queue))
                                    sorted-users-queues)
         max-queue-length (reduce max 0 (map count filtered-users-queues))
-        flattened-queue (filter identity (acc-helper max-queue-length filtered-users-queues nil))]
+        x (flatten-user-queues max-queue-length filtered-users-queues nil)
+        flattened-queue (filter (fn [[_ queue]] queue) x)]
     (println "Found next " value-count " values to be " (take value-count flattened-queue))
     (take value-count flattened-queue)))
+
+(defn find-next-value []
+  (let [[id value] (find-next-values 1)]
+    (if id
+      (let [new-timestamp (if (= 1 (count (get-user-queue id))) nil (now))]
+        (dosync
+         (swap! last-pop (fn [_] value))
+         (drop-first-from-users-queue id)
+         (update-waiting-timestamp-for-user id new-timestamp))
+        value))))
 
 (defn check-content-type [ctx content-types]
   (if (#{:put :post} (get-in ctx [:request :request-method]))

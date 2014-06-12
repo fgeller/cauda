@@ -33,4 +33,14 @@
   (testing "listing vetos"
     (let [response (handler (request :get "/vetos"))]
       (is (= (:status response) 200))
-      (is (= (:body response) "[\"acme\"]")))))
+      (is (= (:body response) "[\"acme\"]"))))
+
+  (testing "queuing a veto'd value"
+    (let [request (body (content-type (request :post "/users/1/queue") "application/json") "{\"data\": \"acme\"}")
+          response (handler request)]
+      (is (= (:status response) 201))))
+
+  (testing "pop'ing the next value should skip the veto'd value and yield an empty result."
+    (let [response (handler (request :get "/queue/pop"))]
+      (is (= (:status response) 200))
+      (is (= (:body response) "{\"data\":null}")))))
