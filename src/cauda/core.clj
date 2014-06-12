@@ -64,9 +64,6 @@
     (update-waiting-timestamp-for-user id (now)))
   (println "Pushed [" data "] into user [" id "] queue: " (get-user-queue id)))
 
-;; http://localhost:3000/users/1/veto
-;; { "data": "something" }
-;; { "waitingSince" nil "vetos" { "something" { "validUntil" 11111 }} }
 (defn apply-users-veto [id target-value]
   (let [vetoing-user (get-user id)
         vetos (vetoing-user "vetos")]
