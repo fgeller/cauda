@@ -17,9 +17,28 @@
   (testing "listing users"
     (let [response (handler (request :get "/users"))]
       (is (= (:status response) 200))
-      (is (= (:body response) "{\"1\":{\"nick\":\"felix\"}}")))))
+      (is (= (:body response) "{\"1\":{\"nick\":\"felix\"}}"))))
 
-(deftest test-veto
+  (testing "listing next songs should be empty"
+    (let [response (handler (request :get "/queue"))]
+      (is (= (:status response) 200))
+      (is (= (:body response) "{\"data\":[]}"))))
+
+  (testing "popping next song should yield empty result"
+    (let [response (handler (request :get "/queue/pop"))]
+      (is (= (:status response) 200))
+      (is (= (:body response) "{\"data\":null}"))))
+
+  (testing "queuing a value"
+    (let [request (body (content-type (request :post "/users/1/queue") "application/json") "{\"data\":\"tnt\"}")
+          response (handler request)]
+      (is (= (:status response) 201))))
+
+  (testing "listing next songs should include the queued song"
+    (let [response (handler (request :get "/queue"))]
+      (is (= (:status response) 200))
+      (is (= (:body response) "{\"data\":[[1,\"tnt\"]]}"))))
+
   (testing "listing vetos"
     (let [response (handler (request :get "/vetos"))]
       (is (= (:status response) 200))
