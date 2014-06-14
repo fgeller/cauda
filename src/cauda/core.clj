@@ -53,7 +53,7 @@
    (alter queues (fn [qs] (update-in qs [id] (fn [old] (conj old data)))))))
 
 (defn update-waiting-timestamp-for-user [id timestamp]
-  (println "Updating waitingSince timestamp for user " id)
+  (println "Updating waitingSince timestamp for user" id)
   (set-property-on-user id "waitingSince" timestamp))
 
 (defn get-user-queue [id] ((all-queues) id))
@@ -62,7 +62,7 @@
   (push-into-user-queue id data)
   (if-not ((get-user id) "waitingSince")
     (update-waiting-timestamp-for-user id (now)))
-  (println "Pushed [" data "] into user [" id "] queue: " (get-user-queue id)))
+  (println "Pushed" data "into user" id "queue:" (get-user-queue id)))
 
 (defn apply-users-veto [id target-value]
   (let [vetoing-user (get-user id)
@@ -100,7 +100,7 @@
         max-queue-length (reduce max 0 (map count filtered-users-queues))
         padded-flattened-queues (flatten-user-queues max-queue-length filtered-users-queues nil)
         flattened-queue (filter (fn [[_ queue]] queue) padded-flattened-queues)]
-    (println "Found next " value-count " values to be " (take value-count flattened-queue))
+    (println "Found next" value-count "values to be" (take value-count flattened-queue))
     (take value-count flattened-queue)))
 
 (defn find-next-value []
@@ -116,8 +116,7 @@
 (defn check-content-type [ctx content-types]
   (if (#{:put :post} (get-in ctx [:request :request-method]))
     (or
-     (some #{(get-in ctx [:request :headers "content-type"])}
-           content-types)
+     (some #{(get-in ctx [:request :headers "content-type"])} content-types)
      [false {:message "Unsupported Content-Type"}])
     true))
 
