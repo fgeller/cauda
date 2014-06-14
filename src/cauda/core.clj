@@ -71,9 +71,13 @@
       (let [new-vetos (update-in vetos [target-value] (fn [_] {"validUntil" (+ (now) (* 1000 60 60 24))}))]
         (set-property-on-user id "vetos" new-vetos)))))
 
-(defn drop-first-from-users-queue [id]
-  (println "Drop element [" (first ((all-queues) id)) "] from user [" id "] queue: ")
-  (alter queues (fn [qs] (assoc qs id (vec (rest (qs id)))))))
+(defn drop-from-queue [id value]
+  (let [queue ((all-queues) id)
+        droppable? (fn [v] (or (= value v) (some #{v} (all-active-vetos))))
+        dropped-elements (take-while droppable? queue)
+        remaining-elements (drop-while droppable? queue)]
+  (println "Drop element" dropped-elements "from user" id "queue:" queue)
+  (alter queues #(assoc % id (vec remaining-elements)))))
 
 (defn find-longest-waiting-users [users user-count]
   (take user-count
@@ -100,12 +104,12 @@
     (take value-count flattened-queue)))
 
 (defn find-next-value []
-  (let [[id value] (find-next-values 1)]
+  (let [[id value] (first (find-next-values 1))]
     (if id
       (let [new-timestamp (if (= 1 (count (get-user-queue id))) nil (now))]
         (dosync
          (swap! last-pop (fn [_] value))
-         (drop-first-from-users-queue id)
+         (drop-from-queue id value)
          (update-waiting-timestamp-for-user id new-timestamp))
         value))))
 
