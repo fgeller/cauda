@@ -1,9 +1,14 @@
 (ns cauda.core
+  (:use clj-logging-config.log4j)
   (:require [liberator.core :refer [resource defresource log!]]
             [compojure.core :refer [defroutes ANY]]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
+            [clojure.tools.logging :as log]
             [clj-http.client :as client]))
+
+(set-logger! :level :debug)
+(set-logger! :out (fn [ev] (println (:message ev))))
 
 (defonce users (ref {}))
 (defonce queues (ref {}))
@@ -17,14 +22,14 @@
   (get @users id))
 
 (defn delete-user [id]
-  (println "Deleting user [" id "]")
+  (log/info "Deleting user " id)
   (dosync (alter users dissoc id nil)))
 
 (defn add-user [data]
   (dosync
    (swap! user-counter inc)
    (let [id @user-counter]
-     (println "Adding user for id " id " and data " data)
+     (log/info "Adding user for id " id " and data " data)
      (alter users assoc  id data)
      (alter queues assoc id [])
      id)))
@@ -53,7 +58,7 @@
    (alter queues (fn [qs] (update-in qs [id] (fn [old] (conj old data)))))))
 
 (defn update-waiting-timestamp-for-user [id timestamp]
-  (println "Updating waitingSince timestamp for user" id)
+  (log/info "Updating waitingSince timestamp for user" id)
   (set-property-on-user id :waitingSince timestamp))
 
 (defn get-user-queue [id] ((all-queues) id))
@@ -62,7 +67,7 @@
   (push-into-user-queue id data)
   (if-not ((get-user id) :waitingSince)
     (update-waiting-timestamp-for-user id (now)))
-  (println "Pushed" data "into user" id "queue:" (get-user-queue id)))
+  (log/info "Pushed" data "into user" id "queue:" (get-user-queue id)))
 
 (defn apply-users-veto [id target-value]
   (let [vetoing-user (get-user id)
@@ -76,8 +81,8 @@
         droppable? (fn [v] (or (= value v) (some #{v} (all-active-vetos))))
         dropped-elements (take-while droppable? queue)
         remaining-elements (drop-while droppable? queue)]
-  (println "Drop element" dropped-elements "from user" id "queue:" queue)
-  (alter queues #(assoc % id (vec remaining-elements)))))
+    (log/info "Drop element" dropped-elements "from user" id "queue:" queue)
+    (alter queues #(assoc % id (vec remaining-elements)))))
 
 (defn find-longest-waiting-users [users user-count]
   (take user-count
@@ -100,7 +105,7 @@
         max-queue-length (reduce max 0 (map count filtered-users-queues))
         padded-flattened-queues (flatten-user-queues max-queue-length filtered-users-queues nil)
         flattened-queue (filter (fn [[_ queue]] queue) padded-flattened-queues)]
-    (println "Found next" value-count "values to be" (take value-count flattened-queue))
+    (log/info "Found next" value-count "values to be" (take value-count flattened-queue))
     (take value-count flattened-queue)))
 
 (defn find-next-value []

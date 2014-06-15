@@ -1,6 +1,8 @@
 (defproject cauda "0.1.0-SNAPSHOT"
   :description "Queueing thing."
   :dependencies [[org.clojure/clojure "1.5.1"]
+                 [org.clojure/tools.logging "0.3.0"]
+                 [clj-logging-config "1.9.10"]
                  [liberator "0.10.0"]
                  [compojure "1.1.3"]
                  [ring "1.2.1"]
