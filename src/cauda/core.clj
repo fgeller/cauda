@@ -34,11 +34,11 @@
 (defn all-queues [] @queues)
 
 (defn all-active-vetos []
-  (let [vetos (filter identity (map (fn [[_ u]] (u "vetos")) (all-users)))
+  (let [vetos (filter identity (map (fn [[_ u]] (u :vetos)) (all-users)))
         active-vetos (flatten (map (fn [veto]
                                      (let [veto-target (first (keys veto))
                                            veto-info (veto veto-target)]
-                                       (if (> (veto-info "validUntil") (now)) veto-target)))
+                                       (if (> (veto-info :validUntil) (now)) veto-target)))
                                    vetos))]
     active-vetos))
 
@@ -54,22 +54,22 @@
 
 (defn update-waiting-timestamp-for-user [id timestamp]
   (println "Updating waitingSince timestamp for user" id)
-  (set-property-on-user id "waitingSince" timestamp))
+  (set-property-on-user id :waitingSince timestamp))
 
 (defn get-user-queue [id] ((all-queues) id))
 
 (defn queue-for-user [id data]
   (push-into-user-queue id data)
-  (if-not ((get-user id) "waitingSince")
+  (if-not ((get-user id) :waitingSince)
     (update-waiting-timestamp-for-user id (now)))
   (println "Pushed" data "into user" id "queue:" (get-user-queue id)))
 
 (defn apply-users-veto [id target-value]
   (let [vetoing-user (get-user id)
-        vetos (vetoing-user "vetos")]
-    (if (or (nil? vetos) (nil? (vetos target-value)) (< ((vetos target-value) "validUntil") (now)))
-      (let [new-vetos (update-in vetos [target-value] (fn [_] {"validUntil" (+ (now) (* 1000 60 60 24))}))]
-        (set-property-on-user id "vetos" new-vetos)))))
+        vetos (vetoing-user :vetos)]
+    (if (or (nil? vetos) (nil? (vetos target-value)) (< ((vetos target-value) :validUntil) (now)))
+      (let [new-vetos (update-in vetos [target-value] (fn [_] {:validUntil (+ (now) (* 1000 60 60 24))}))]
+        (set-property-on-user id :vetos new-vetos)))))
 
 (defn drop-from-queue [id value]
   (let [queue ((all-queues) id)
@@ -82,7 +82,7 @@
 (defn find-longest-waiting-users [users user-count]
   (take user-count
         (map (fn [[id _]] id)
-             (sort-by (fn [[_ user]] (user "waitingSince")) (seq users)))))
+             (sort-by (fn [[_ user]] (user :waitingSince)) (seq users)))))
 
 (defn flatten-user-queues [count queues acc]
   (if (zero? count) acc
