@@ -39,11 +39,11 @@
 (defn all-queues [] @queues)
 
 (defn all-active-vetos []
-  (let [vetos (filter identity (map (fn [[_ u]] (u :vetos)) (all-users)))
+  (let [vetos (filter identity (map (fn [[_ u]] (:vetos u)) (all-users)))
         active-vetos (flatten (map (fn [veto]
                                      (let [veto-target (first (keys veto))
                                            veto-info (veto veto-target)]
-                                       (if (> (veto-info :validUntil) (now)) veto-target)))
+                                       (if (> (:validUntil veto-info) (now)) veto-target)))
                                    vetos))]
     active-vetos))
 
@@ -65,14 +65,14 @@
 
 (defn queue-for-user [id data]
   (push-into-user-queue id data)
-  (if-not ((get-user id) :waitingSince)
+  (if-not (:waitingSince (get-user id))
     (update-waiting-timestamp-for-user id (now)))
   (log/info "Pushed" data "into user" id "queue:" (get-user-queue id)))
 
 (defn apply-users-veto [id target-value]
   (let [vetoing-user (get-user id)
-        vetos (vetoing-user :vetos)]
-    (if (or (nil? vetos) (nil? (vetos target-value)) (< ((vetos target-value) :validUntil) (now)))
+        vetos (:vetos vetoing-user)]
+    (if (or (nil? vetos) (nil? (vetos target-value)) (< (:validUntil (vetos target-value)) (now)))
       (let [new-vetos (update-in vetos [target-value] (fn [_] {:validUntil (+ (now) (* 1000 60 60 24))}))]
         (set-property-on-user id :vetos new-vetos)))))
 
@@ -87,7 +87,7 @@
 (defn find-longest-waiting-users [users user-count]
   (take user-count
         (map (fn [[id _]] id)
-             (sort-by (fn [[_ user]] (user :waitingSince)) (seq users)))))
+             (sort-by (fn [[_ user]] (:waitingSince user)) (seq users)))))
 
 (defn flatten-user-queues [count queues acc]
   (if (zero? count) acc
