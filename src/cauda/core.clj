@@ -85,7 +85,7 @@
              (sort-by (fn [[_ user]] (user "waitingSince")) (seq users)))))
 
 (defn flatten-user-queues [count queues acc]
-  (if (= count 0) acc
+  (if (zero? count) acc
       (flatten-user-queues (dec count)
                   (map (fn [[id queue]] [id (rest queue)]) queues)
                   (concat acc (map (fn [[id queue]] [id (first queue)]) queues)))))
@@ -94,7 +94,7 @@
   (let [longest-waiting-users (find-longest-waiting-users (all-users) (count (all-users)))
         sorted-users-queues (map (fn [id] [id (get-user-queue id)]) longest-waiting-users)
         active-vetos (all-active-vetos)
-        filtered-users-queues (map (fn [queue] (filter (fn [value] (not (some #(= % value) active-vetos)))
+        filtered-users-queues (map (fn [queue] (filter (fn [value] (not-any? #(= % value) active-vetos))
                                                        queue))
                                    sorted-users-queues)
         max-queue-length (reduce max 0 (map count filtered-users-queues))
@@ -106,7 +106,7 @@
 (defn find-next-value []
   (let [[id value] (first (find-next-values 1))]
     (if id
-      (let [new-timestamp (if (= 1 (count (get-user-queue id))) nil (now))]
+      (let [new-timestamp (when-not (= 1 (count (get-user-queue id))) (now))]
         (dosync
          (swap! last-pop (fn [_] value))
          (drop-from-queue id value)
