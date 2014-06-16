@@ -30,7 +30,28 @@
 
       (let [response (handler (request :get "/users"))]
         (:status response) => 200
-        (:body response) => "{\"1\":{\"nick\":\"felix\"}}"))
+        (:body response) => "{\"1\":{\"nick\":\"felix\"}}")
+
+      (against-background (after :facts (cleanup))))
+
+(fact "adding and deleting a user"
+      (let [request (body (content-type (request :post "/users") "application/json") "{\"nick\": \"felix\"}")
+            response (handler request)]
+        (:status response) => 201)
+
+      (let [response (handler (request :get "/users"))]
+        (:status response) => 200
+        (:body response) => "{\"1\":{\"nick\":\"felix\"}}")
+
+      (let [request (request :delete "/users/1")
+            response (handler request)]
+        (:status response) => 204)
+
+      (let [response (handler (request :get "/users"))]
+        (:status response) => 200
+        (:body response) => "{}")
+
+      (against-background (after :facts (cleanup))))
 
 (fact "listing on empty cauda"
       (let [response (handler (request :get "/queue"))]
