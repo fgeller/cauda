@@ -38,12 +38,14 @@
 
 (defn all-queues [] @queues)
 
+(defn valid-veto? [veto-info]
+  (> (:validUntil veto-info) (now)))
+
 (defn all-active-vetos []
   (let [vetos (filter identity (map (fn [[_ u]] (:vetos u)) (all-users)))
         active-vetos (flatten (map (fn [veto]
-                                     (let [veto-target (first (keys veto))
-                                           veto-info (veto veto-target)]
-                                       (if (> (:validUntil veto-info) (now)) veto-target)))
+                                     (map (fn [[veto-target veto-info]] (if (valid-veto? veto-info) veto-target))
+                                          veto))
                                    vetos))]
     active-vetos))
 
@@ -75,6 +77,11 @@
     (if (or (nil? vetos) (nil? (vetos target-value)) (< (:validUntil (vetos target-value)) (now)))
       (let [new-vetos (update-in vetos [target-value] (fn [_] {:validUntil (+ (now) (* 1000 60 60 24))}))]
         (set-property-on-user id :vetos new-vetos)))))
+
+(defn veto-allowed-for-user? [id]
+  (let [vetos (:vetos (get-user id))]
+    (if vetos (> 5 (count (filter (fn [[_ info]] (valid-veto? info)) vetos)))
+      true)))
 
 (defn drop-from-queue [id value]
   (let [queue ((all-queues) id)
@@ -190,7 +197,9 @@
                      (if-not (nil? user) {::user user})))
   :existed? (fn [_] (nil? (get-user id)))
   :available-media-types ["application/json"]
-  :malformed? #(parse-json % ::data)
+  :malformed? #(or
+                (not (veto-allowed-for-user? id))
+                (parse-json % ::data))
   :post! #(apply-users-veto id ((::data %) "data"))
   :handle-ok (fn [_] nil))
 

@@ -14,6 +14,10 @@
   (let [request (body (content-type (request :post "/users") "application/json") "{\"nick\": \"felix\"}")]
     (handler request)))
 
+(defn add-test-veto [value]
+  (let [request (body (content-type (request :post "/users/1/veto") "application/json") (format "{\"data\": \"%s\"}" value))]
+    (handler request)))
+
 (defn queue-test-value [value]
   (let [request (body (content-type (request :post "/users/1/queue") "application/json") (format "{\"data\":\"%s\"}" value))]
     (handler request)))
@@ -95,5 +99,24 @@
       (let [response (handler (request :get "/queue/pop"))]
         (:status response) => 200
         (:body response) => "{\"data\":\"tnt\"}")
+
+      (against-background (after :facts (cleanup))))
+
+
+(fact "vetos are capped at 5 per user per day"
+      (add-test-user)
+      (add-test-veto "a")
+      (add-test-veto "b")
+      (add-test-veto "c")
+      (add-test-veto "d")
+      (add-test-veto "e")
+
+      (let [request (body (content-type (request :post "/users/1/veto") "application/json") "{\"data\": \"f\"}")
+            response (handler request)]
+        (:status response) => 400)
+
+      (let [response (handler (request :get "/vetos"))]
+        (:status response) => 200
+        (:body response) => "[\"e\",\"d\",\"c\",\"b\",\"a\"]")
 
       (against-background (after :facts (cleanup))))
