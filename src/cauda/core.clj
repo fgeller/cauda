@@ -222,7 +222,8 @@
   :allowed-methods [:get]
   :known-content-type? #(check-content-type % ["application/json"])
   :available-media-types ["application/json"]
-  :handle-ok (fn [_] {"data" (find-next-values 5)}))
+  :handle-ok (fn [_] {"data" (map (fn [[user-id value]]  {user-id value})
+                                  (find-next-values 5))}))
 
 (defroutes app-routes
   (ANY "/queue" [] queue-resource)

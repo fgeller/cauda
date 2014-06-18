@@ -75,7 +75,7 @@
 
       (let [response (handler (request :get "/queue"))]
         (:status response) => 200
-        (:body response) => "{\"data\":[[1,\"tnt\"]]}")
+        (:body response) => "{\"data\":[{\"1\":\"tnt\"}]}")
       (against-background (after :facts (cleanup))))
 
 (fact "listing vetos"
