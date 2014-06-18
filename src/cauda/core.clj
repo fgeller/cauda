@@ -85,11 +85,9 @@
 
 (defn drop-from-queue [id value]
   (let [queue ((all-queues) id)
-        droppable? (fn [v] (or (= value v) (some #{v} (all-active-vetos))))
-        dropped-elements (take-while droppable? queue)
-        remaining-elements (drop-while droppable? queue)]
-    (log/info "Drop element" dropped-elements "from user" id "queue:" queue)
-    (alter queues #(assoc % id (vec remaining-elements)))))
+        [dropped-vetos remainder] (split-with (fn [value] (some #{value} (all-active-vetos))) queue)]
+    (log/info "Drop leading vetos " dropped-vetos "for value" value "from user" id "queue:" queue)
+    (alter queues #(assoc % id (vec (rest remainder))))))
 
 (defn find-longest-waiting-users [users user-count]
   (take user-count
@@ -106,12 +104,13 @@
   (let [longest-waiting-users (find-longest-waiting-users (all-users) (count (all-users)))
         sorted-users-queues (map (fn [id] [id (get-user-queue id)]) longest-waiting-users)
         active-vetos (all-active-vetos)
-        filtered-users-queues (map (fn [queue] (filter (fn [value] (not-any? #(= % value) active-vetos))
-                                                       queue))
-                                   sorted-users-queues)
+        filtered-users-queues (zipmap longest-waiting-users
+                                      (map (fn [[id queue]] (filter (fn [value] (not-any? #(= % value) active-vetos))
+                                                                    queue))
+                                           sorted-users-queues))
         max-queue-length (reduce max 0 (map count filtered-users-queues))
         padded-flattened-queues (flatten-user-queues max-queue-length filtered-users-queues nil)
-        flattened-queue (filter (fn [[_ queue]] queue) padded-flattened-queues)]
+        flattened-queue (filter (fn [[_ value]] value) padded-flattened-queues)]
     (log/info "Found next" value-count "values to be" (take value-count flattened-queue))
     (take value-count flattened-queue)))
 
