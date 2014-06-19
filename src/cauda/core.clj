@@ -69,7 +69,7 @@
   (push-into-user-queue id data)
   (if-not (:waitingSince (get-user id))
     (update-waiting-timestamp-for-user id (now)))
-  (log/info "Pushed" data "into user" id "queue:" (get-user-queue id)))
+  (log/info "Pushed" data "into user" id "waiting since" (:waitingSince (get-user id)) "with queue:" (get-user-queue id)))
 
 (defn apply-users-veto [id target-value]
   (let [vetoing-user (get-user id)
@@ -94,11 +94,11 @@
         (map (fn [[id _]] id)
              (sort-by (fn [[_ user]] (:waitingSince user)) (seq users)))))
 
-(defn flatten-user-queues [count queues acc]
+(defn flatten-user-queues [count users queues acc]
   (if (zero? count) acc
-      (flatten-user-queues (dec count)
-                  (map (fn [[id queue]] [id (rest queue)]) queues)
-                  (concat acc (map (fn [[id queue]] [id (first queue)]) queues)))))
+      (let [next-queues (into {} (map (fn [[id queue]] [id (rest queue)]) queues))
+            next-acc (concat acc (map (fn [user] [user (first (get queues user))]) users))]
+        (flatten-user-queues (dec count) users next-queues next-acc))))
 
 (defn find-next-values [value-count]
   (let [longest-waiting-users (find-longest-waiting-users (all-users) (count (all-users)))
@@ -109,7 +109,10 @@
                                                                     queue))
                                            sorted-users-queues))
         max-queue-length (reduce max 0 (map count filtered-users-queues))
-        padded-flattened-queues (flatten-user-queues max-queue-length filtered-users-queues nil)
+        padded-flattened-queues (flatten-user-queues max-queue-length
+                                                     longest-waiting-users
+                                                     filtered-users-queues
+                                                     nil)
         flattened-queue (filter (fn [[_ value]] value) padded-flattened-queues)]
     (log/info "Found next" value-count "values to be" (take value-count flattened-queue))
     (take value-count flattened-queue)))
