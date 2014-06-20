@@ -5,7 +5,8 @@
             [clojure.java.io :as io]
             [clojure.data.json :as json]
             [clojure.tools.logging :as log]
-            [clj-http.client :as client]))
+            [clj-http.client :as client]
+            [datomic.api :only [q db] :as d]))
 
 (set-logger! :level :debug)
 (set-logger! :out (fn [ev] (println (:message ev))))
