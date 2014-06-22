@@ -1,5 +1,4 @@
 (ns cauda.core
-  (:use clj-logging-config.log4j)
   (:require [liberator.core :refer [resource defresource log!]]
             [compojure.core :refer [defroutes ANY]]
             [clojure.java.io :as io]
@@ -7,9 +6,6 @@
             [clojure.tools.logging :as log]
             [clj-http.client :as client]
             [datomic.api :only [q db] :as d]))
-
-(set-logger! :level :debug)
-(set-logger! :out (fn [ev] (println (:message ev))))
 
 (defonce users (ref {}))
 (defonce queues (ref {}))
