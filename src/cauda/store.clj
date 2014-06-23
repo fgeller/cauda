@@ -20,3 +20,13 @@
 (let [db (d/db conn)]
   (pprint
    (map #(:user-counter (d/entity db (first %))) results)))
+
+;; add a user
+(def some-user {:db/id (d/tempid :db.part/user) :user/id 23 :user/nick "hans"})
+@(d/transact conn [some-user])
+
+;; read a user
+(def found-user
+  (d/entity (d/db conn) (ffirst (d/q '[:find ?u :where [?u :user/id 23]] (d/db conn)))))
+
+(:user/nick found-user)
