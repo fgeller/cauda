@@ -13,7 +13,6 @@
 (def results (d/q '[:find ?c :where [?c :user-counter]] (d/db conn)))
 (count results)
 (def entity (-> conn d/db (d/entity (ffirst results))))
-(d/db conn)
 (d/entity (d/db conn) (ffirst results))
 (keys entity)
 (:user-counter entity)
@@ -22,11 +21,44 @@
    (map #(:user-counter (d/entity db (first %))) results)))
 
 ;; add a user
-(def some-user {:db/id (d/tempid :db.part/user) :user/id 23 :user/nick "hans"})
-@(d/transact conn [some-user])
+(def some-users
+  [
+   {:db/id (d/tempid :db.part/user) :user/id 23 :user/nick "hans"}
+   {:db/id (d/tempid :db.part/user) :user/id 24 :user/nick "peter"}
+   {:db/id (d/tempid :db.part/user) :user/id 25 :user/nick "dieter"}
+   ])
+
+@(d/transact conn some-users)
+;; (def found-user
+;;   (d/entity (d/db conn) (ffirst (d/q '[:find ?u :where [?u :user/id 23]] (d/db conn)))))
+
 
 ;; read a user
-(def found-user
-  (d/entity (d/db conn) (ffirst (d/q '[:find ?u :where [?u :user/id 23]] (d/db conn)))))
+;; (defn get-user-from-db [id]
+;;   (d/entity (d/db conn) (ffirst (d/q '[:find ?u :where [?u :user/id id]] (d/db conn)))))
 
-(:user/nick found-user)
+(defn database-connection []
+  (d/db (d/connect datomic-uri)))
+
+(database-connection)
+
+(defn get-user-from-db [connection id]
+    (d/entity connection
+              (ffirst
+               (d/q [:find '?u :where ['?u :user/id id]] connection))))
+
+(let [connection (database-connection)]
+  (:user/nick
+   (get-user-from-db connection 23)))
+
+(defn get-all-users-from-db [connection]
+  (map (fn [entity] {(:user/id entity) {:nick (:user/nick entity)}})
+       (map (fn [[entity-id]] (d/entity connection entity-id))
+            (d/q `[:find ?u :where [?u :user/id]] connection))))
+
+(let [connection (database-connection)]
+   (get-all-users-from-db connection))
+
+
+
+(:user/nick (get-user-from-db 25))
