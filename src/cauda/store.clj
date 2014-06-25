@@ -62,3 +62,10 @@
 
 
 (:user/nick (get-user-from-db 25))
+
+;;
+
+(def tx-instants (reverse (sort
+                           (d/q '[:find ?when :where [_ :db/txInstant ?when]] (database-connection)))))
+
+tx-instants
