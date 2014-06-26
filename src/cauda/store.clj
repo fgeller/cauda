@@ -33,8 +33,14 @@
 (def db (d/db conn))
 (get-all-users-from-db db)
 
+(defn update-user-nick [user-id database]
+  (let [[entity-id] (first (d/q `[:find ?u :where [?u :user/id ~user-id]] database))
+        update-tx [{:db/id entity-id :user/nick "mario"}]]
+    @(d/transact conn update-tx)))
 
-
+(update-user-nick 23 db)
+(def db (d/db conn))
+(get-all-users-from-db db)
 
 
 (def data-tx (read-string (slurp "data-clean-slate.edn")))
