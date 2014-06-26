@@ -2,12 +2,41 @@
   (:require [datomic.api :only [q db] :as d]))
 (use 'clojure.pprint)
 
-;; trying datomic
 (def datomic-uri "datomic:mem://cauda")
 (d/create-database datomic-uri)
+
+(d/shutdown true)
+(d/delete-database datomic-uri)
+
 (def conn (d/connect datomic-uri))
+(def db (d/db conn))
+
+
 (def schema-tx (read-string (slurp "schema.edn")))
 @(d/transact conn schema-tx)
+(def db (d/db conn))
+
+(defn get-all-users-from-db [database]
+  (map (fn [entity] {(:user/id entity) {:nick (:user/nick entity)}})
+       (map (fn [[entity-id]] (d/entity database entity-id))
+            (d/q `[:find ?u :where [?u :user/id]] database))))
+
+
+(def some-users-tx
+  [
+   {:db/id (d/tempid :db.part/user) :user/id 23 :user/nick "hans"}
+   {:db/id (d/tempid :db.part/user) :user/id 24 :user/nick "peter"}
+   {:db/id (d/tempid :db.part/user) :user/id 25 :user/nick "dieter"}
+   ])
+@(d/transact conn some-users-tx)
+
+(def db (d/db conn))
+(get-all-users-from-db db)
+
+
+
+
+
 (def data-tx (read-string (slurp "data-clean-slate.edn")))
 @(d/transact conn data-tx)
 (def results (d/q '[:find ?c :where [?c :user-counter]] (d/db conn)))
@@ -38,26 +67,34 @@
 ;;   (d/entity (d/db conn) (ffirst (d/q '[:find ?u :where [?u :user/id id]] (d/db conn)))))
 
 (defn database-connection []
-  (d/db (d/connect datomic-uri)))
+  (d/connect datomic-uri))
+
+(defn database [connection] (d/db connection))
 
 (database-connection)
 
-(defn get-user-from-db [connection id]
-    (d/entity connection
+(database (database-connection))
+
+
+@(d/transact (database-connection) schema-tx)
+@(d/transact (database-connection) some-users)
+
+(defn get-user-from-db [database id]
+    (d/entity database
               (ffirst
-               (d/q [:find '?u :where ['?u :user/id id]] connection))))
+               (d/q [:find '?u :where ['?u :user/id id]] database))))
 
-(let [connection (database-connection)]
+(let [db (database (database-connection))]
   (:user/nick
-   (get-user-from-db connection 23)))
+   (get-user-from-db db 23)))
 
-(defn get-all-users-from-db [connection]
+(defn get-all-users-from-db [database]
   (map (fn [entity] {(:user/id entity) {:nick (:user/nick entity)}})
-       (map (fn [[entity-id]] (d/entity connection entity-id))
-            (d/q `[:find ?u :where [?u :user/id]] connection))))
+       (map (fn [[entity-id]] (d/entity database entity-id))
+            (d/q `[:find ?u :where [?u :user/id]] database))))
 
-(let [connection (database-connection)]
-   (get-all-users-from-db connection))
+(let [database (database (database-connection))]
+   (get-all-users-from-db database))
 
 
 
