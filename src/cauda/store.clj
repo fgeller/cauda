@@ -33,7 +33,7 @@
 (get-all-users-from-db db)
 
 (defn get-user-from-db [database id]
-  (let [entity (peer/entity database (ffirst (peer/q [:find '?u :where ['?u :user/id id]] database)))]
+  (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))]
     (construct-user entity)))
 (get-user-from-db db 23)
 
