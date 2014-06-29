@@ -38,15 +38,22 @@
   },
  {
   :db/id #db/id[:db.part/db]
-  :db/ident :value/queuer   ;; link back to the user
-  :db/valueType :db.type/long
+  :db/ident :value/queuer
+  :db/valueType :db.type/ref
+  :db/cardinality :db.cardinality/many
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :value/queue-time
+  :db/valueType :db.type/instant
   :db/cardinality :db.cardinality/one
   :db.install/_attribute :db.part/db
   },
  {
   :db/id #db/id[:db.part/db]
-  :db/ident :value/popped  ;; time is implicit
-  :db/valueType :db.type/boolean
+  :db/ident :value/pop-time
+  :db/valueType :db.type/instant
   :db/cardinality :db.cardinality/one
   :db.install/_attribute :db.part/db
   }

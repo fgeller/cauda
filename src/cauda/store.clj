@@ -45,6 +45,13 @@
 (update-user-nick db 23 "luigi")
 (get-all-users-from-db db)
 
+(defn queue-value-for-user [connection database user-id value]
+  (let [[user-entity-id] (first (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database user-id))
+        update-tx [{:db/id (peer/tempid :db.part/user) :value/content value :value/queuer user-entity-id :value/queue-time (new java.util.Date)}]]
+    @(peer/transact connection update-tx)))
+
+(queue-value-for-user conn db 23 "acme")
+
 (def db (peer/db conn))
 (get-all-users-from-db db)
 
