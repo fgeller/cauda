@@ -52,7 +52,15 @@
 
 (queue-value-for-user conn db 23 "acme")
 
+(defn queued-values-for-user [database user-id]
+  (map (fn [[_ value]] {user-id value})
+       (peer/q '[:find ?q ?c :in $ ?i :where [?u :user/id ?i] [?q :value/queuer ?u] [?q :value/content ?c]] database user-id)))
+
+(queued-values-for-user db 23)
+
 (def db (peer/db conn))
+(queued-values-for-user db 23)
+
 (get-all-users-from-db db)
 
 (def tx-instants (reverse (sort
