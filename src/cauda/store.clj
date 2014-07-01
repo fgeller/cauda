@@ -61,7 +61,12 @@
 (def db (peer/db conn))
 (queued-values-for-user db 23)
 
-(get-all-users-from-db db)
+(defn pop-value-for-user [connection database user-id value]
+  (let [x (peer/q '[:find ?q :in $ ?i ?c :where [?u :user/id ?i] [?q :value/queuer ?u] [?q :value/content ?c]] database user-id value)]
+    x))
+
+(pop-value-for-user conn db 23 "acme")
+
 
 (def tx-instants (reverse (sort
                            (peer/q '[:find ?when :where [_ :db/txInstant ?when]] db))))
