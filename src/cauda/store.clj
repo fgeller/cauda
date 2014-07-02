@@ -43,6 +43,7 @@
     @(peer/transact conn update-tx)))
 
 (update-user-nick db 23 "luigi")
+(def db (peer/db conn))
 (get-all-users-from-db db)
 
 (defn queue-value-for-user [connection database user-id value]
@@ -53,17 +54,19 @@
 (queue-value-for-user conn db 23 "acme")
 
 (defn queued-values-for-user [database user-id]
-  (map (fn [[_ value]] {user-id value})
-       (peer/q '[:find ?q ?c :in $ ?i :where [?u :user/id ?i] [?q :value/queuer ?u] [?q :value/content ?c]] database user-id)))
-
-(queued-values-for-user db 23)
+  (map (fn [[_ value pt]] {user-id value :pop-time pt})
+       (peer/q '[:find ?q ?c ?pt :in $ ?i :where [?u :user/id ?i] [?q :value/queuer ?u] [?q :value/content ?c] [?q :value/pop-time ?pt]] database user-id)))
 
 (def db (peer/db conn))
 (queued-values-for-user db 23)
 
 (defn pop-value-for-user [connection database user-id value]
-  (let [x (peer/q '[:find ?q :in $ ?i ?c :where [?u :user/id ?i] [?q :value/queuer ?u] [?q :value/content ?c]] database user-id value)]
-    x))
+  (let [users-queue (peer/q '[:find ?q :in $ ?i ?c :where [?u :user/id ?i] [?q :value/queuer ?u] [?q :value/content ?c]] database user-id value)
+        value-to-pop (ffirst (sort-by (fn [[a]] (:value/queue-time (peer/entity database a))) users-queue))
+        update-tx [{:db/id value-to-pop :value/pop-time (new java.util.Date)}]]
+    @(peer/transact connection update-tx)))
+
+;; as function in db?
 
 (pop-value-for-user conn db 23 "acme")
 
