@@ -54,8 +54,14 @@
 (queue-value-for-user conn db 23 "acme")
 
 (defn queued-values-for-user [database user-id]
-  (map (fn [[_ value pt]] {user-id value :pop-time pt})
-       (peer/q '[:find ?q ?c ?pt :in $ ?i :where [?u :user/id ?i] [?q :value/queuer ?u] [?q :value/content ?c] [?q :value/pop-time ?pt]] database user-id)))
+  (map (fn [[_ value pt]] {user-id value})
+       (peer/q '[:find ?q ?c
+                 :in $ ?i
+                 :where
+                 [?u :user/id ?i]
+                 [?q :value/queuer ?u]
+                 [?q :value/content ?c]
+                 [(missing? $ ?q :value/pop-time)]] database user-id)))
 
 (def db (peer/db conn))
 (queued-values-for-user db 23)
