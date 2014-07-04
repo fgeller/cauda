@@ -67,7 +67,7 @@
 (queued-values-for-user db 23)
 
 (defn pop-value-for-user [connection database user-id value]
-  (let [users-queue (peer/q '[:find ?q :in $ ?i ?c :where [?u :user/id ?i] [?q :value/queuer ?u] [?q :value/content ?c]] database user-id value)
+  (let [users-queue (queued-values-for-user database user-id)
         value-to-pop (ffirst (sort-by (fn [[a]] (:value/queue-time (peer/entity database a))) users-queue))
         update-tx [{:db/id value-to-pop :value/pop-time (new java.util.Date)}]]
     @(peer/transact connection update-tx)))
