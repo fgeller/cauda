@@ -3,7 +3,7 @@
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/tools.logging "0.3.0"]
                  [clj-logging-config "1.9.10"]
-                 [liberator "0.10.0"]
+                 [liberator "0.11.1"]
                  [compojure "1.1.3"]
                  [ring "1.2.1"]
                  [ring.middleware.jsonp "0.1.4"]
