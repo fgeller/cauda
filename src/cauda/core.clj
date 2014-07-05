@@ -148,54 +148,46 @@
         (.printStackTrace e)
         {:message (format "IOException: " (.getMessage e))}))))
 
+(def json-resource
+  {:available-media-types ["application/json"]
+   :known-content-type? #(check-content-type % ["application/json"])
+   :malformed? #(parse-json % ::data)})
+
 (defresource user-by-id-resource [id]
-  :available-media-types ["application/json"]
+  json-resource
   :allowed-methods [:get :delete]
-  :known-content-type? #(check-content-type % ["application/json"])
   :exists? (fn [_] (let [user (get-user id)]
                      (if-not (nil? user) {::user user})))
   :existed? (fn [_] (nil? (get-user id)))
-  :available-media-types ["application/json"]
-  :malformed? #(parse-json % ::data)
-  :can-put-to-missing? false
   :delete! (fn [_] (delete-user id))
   :handle-ok ::user)
 
 (defresource users-resource
-  :available-media-types ["application/json"]
+  json-resource
   :allowed-methods [:get :post]
-  :known-content-type? #(check-content-type % ["application/json"])
-  :malformed? #(parse-json % ::data)
   :post! (fn [data] {::id (add-user (::data data))})
   :handle-ok (fn [_] (all-users)))
 
 (defresource vetos-resource
-  :available-media-types ["application/json"]
+  json-resource
   :allowed-methods [:get]
-  :known-content-type? #(check-content-type % ["application/json"])
-  :malformed? #(parse-json % ::data)
   :handle-ok (fn [_] (all-active-vetos)))
 
 (defresource users-queue-resource [id]
-  :available-media-types ["application/json"]
+  json-resource
   :allowed-methods [:get :delete :post]
-  :known-content-type? #(check-content-type % ["application/json"])
   :exists? (fn [_] (let [user (get-user id)]
                      (if-not (nil? user) {::user user})))
   :existed? (fn [_] (nil? (get-user id)))
-  :available-media-types ["application/json"]
-  :malformed? #(parse-json % ::data)
   :post! #(queue-for-user id ((::data %) "data"))
   :handle-ok (fn [_] (get-user-queue id)))
 
 (defresource users-veto-resource [id]
-  :available-media-types ["application/json"]
+  json-resource
   :allowed-methods [:post]
-  :known-content-type? #(check-content-type % ["application/json"])
   :exists? (fn [_] (let [user (get-user id)]
                      (if-not (nil? user) {::user user})))
   :existed? (fn [_] (nil? (get-user id)))
-  :available-media-types ["application/json"]
   :malformed? #(or
                 (not (veto-allowed-for-user? id))
                 (parse-json % ::data))
@@ -203,24 +195,18 @@
   :handle-ok (fn [_] nil))
 
 (defresource queue-pop-resource
-  :available-media-types ["application/json"]
+  json-resource
   :allowed-methods [:get]
-  :known-content-type? #(check-content-type % ["application/json"])
-  :available-media-types ["application/json"]
   :handle-ok (fn [_] {"data" (find-next-value)}))
 
 (defresource queue-last-pop-resource
-  :available-media-types ["application/json"]
+  json-resource
   :allowed-methods [:get]
-  :known-content-type? #(check-content-type % ["application/json"])
-  :available-media-types ["application/json"]
   :handle-ok (fn [_] {"data" @last-pop}))
 
 (defresource queue-resource
-  :available-media-types ["application/json"]
+  json-resource
   :allowed-methods [:get]
-  :known-content-type? #(check-content-type % ["application/json"])
-  :available-media-types ["application/json"]
   :handle-ok (fn [_] {"data" (map (fn [[user-id value]]  {user-id value})
                                   (find-next-values 5))}))
 
