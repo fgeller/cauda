@@ -65,13 +65,9 @@
 
 (defn pop-value-for-user [connection database user-id value]
   (let [users-queue (queued-entities-for-user database user-id)
-        value-to-pop (sort-by #(:value/queue-time (peer/entity database %)) users-queue)
+        value-to-pop (first (sort-by #(:value/queue-time (peer/entity database %)) users-queue))
         update-tx [{:db/id value-to-pop :value/pop-time (new java.util.Date)}]]
-    value-to-pop
-    ;; @(peer/transact connection update-tx)
-    ))
-
-;; as function in db?
+    @(peer/transact connection update-tx)))
 
 (pop-value-for-user conn db 23 "acme")
 
