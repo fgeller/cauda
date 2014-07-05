@@ -53,24 +53,23 @@
 
 (queue-value-for-user conn db 23 "acme")
 
-(defn queued-values-for-user [database user-id]
-  (map (fn [[_ value pt]] {user-id value})
-       (peer/q '[:find ?q ?c
-                 :in $ ?i
-                 :where
+(defn queued-entities-for-user [database user-id]
+  (map first
+       (peer/q '[:find ?q :in $ ?i :where
                  [?u :user/id ?i]
                  [?q :value/queuer ?u]
-                 [?q :value/content ?c]
                  [(missing? $ ?q :value/pop-time)]] database user-id)))
 
 (def db (peer/db conn))
-(queued-values-for-user db 23)
+(queued-entities-for-user db 23)
 
 (defn pop-value-for-user [connection database user-id value]
-  (let [users-queue (queued-values-for-user database user-id)
-        value-to-pop (ffirst (sort-by (fn [[a]] (:value/queue-time (peer/entity database a))) users-queue))
+  (let [users-queue (queued-entities-for-user database user-id)
+        value-to-pop (sort-by #(:value/queue-time (peer/entity database %)) users-queue)
         update-tx [{:db/id value-to-pop :value/pop-time (new java.util.Date)}]]
-    @(peer/transact connection update-tx)))
+    value-to-pop
+    ;; @(peer/transact connection update-tx)
+    ))
 
 ;; as function in db?
 

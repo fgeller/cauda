@@ -13,5 +13,6 @@
 
   :profiles
   {:dev {:dependencies [[ring-mock "0.1.5"]
+                        [org.clojure/tools.trace "0.7.8"]
                         [midje "1.6.3"]]}}
   :main cauda.app)
