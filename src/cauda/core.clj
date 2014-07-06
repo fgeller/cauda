@@ -233,7 +233,7 @@
   json-resource
   :allowed-methods [:post]
   :exists? (fn [_] (let [user (get-user id)]
-                     (if-not (nil? user) {::user user})))
+                     (if user {::user user})))
   :existed? (fn [_] (nil? (get-user id)))
   :malformed? #(or
                 (not (veto-allowed-for-user? id))
