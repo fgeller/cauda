@@ -5,11 +5,11 @@
             [ring.middleware.jsonp :refer [wrap-json-with-padding]]
             [ring.middleware.reload :refer [wrap-reload]]))
 
-(def handler
+(def handlers
   (-> app-routes
       (wrap-json-with-padding)
       (wrap-params)
       (wrap-reload '(cauda.core cauda.app))))
 
 (defn boot []
-  (run-jetty #'handler {:port 3000 :join? false}))
+  (run-jetty #'handlers {:port 3000 :join? false}))

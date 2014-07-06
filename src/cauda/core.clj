@@ -1,11 +1,12 @@
 (ns cauda.core
+  (:use cauda.store)
   (:require [liberator.core :refer [resource defresource log!]]
             [compojure.core :refer [defroutes ANY]]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
             [clojure.tools.logging :as log]
             [clj-http.client :as client]
-            [datomic.api :only [q db] :as d]))
+            [datomic.api :only [q db] :as peer]))
 
 (defonce users (ref {}))
 (defonce queues (ref {}))
@@ -124,15 +125,15 @@
          (update-waiting-timestamp-for-user id new-timestamp))
         value))))
 
-(defn check-content-type [ctx content-types]
-  (if (#{:put :post} (get-in ctx [:request :request-method]))
+(defn check-content-type [context content-types]
+  (if (#{:put :post} (get-in context [:request :request-method]))
     (or
-     (some #{(get-in ctx [:request :headers "content-type"])} content-types)
+     (some #{(get-in context [:request :headers "content-type"])} content-types)
      [false {:message "Unsupported Content-Type"}])
     true))
 
-(defn body-as-string [ctx]
-  (if-let [body (get-in ctx [:request :body])]
+(defn body-as-string [context]
+  (if-let [body (get-in context [:request :body])]
     (condp instance? body
       java.lang.String body
       (slurp (io/reader body)))))
@@ -153,12 +154,58 @@
    :known-content-type? #(check-content-type % ["application/json"])
    :malformed? #(parse-json % ::data)})
 
+(defmacro request-handler [& rest]
+  `(fn [~'context] ~@rest))
+
+(defn construct-user [entity] {(:user/id entity) {:nick (:user/nick entity)}})
+
+(defn get-user-from-db [database id]
+  (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))]
+    (construct-user entity)))
+
+;; (defn get-all-users-from-db [database]
+;;   (map construct-user
+;;        (map (fn [[entity-id]] (peer/entity database entity-id))
+;;             (peer/q `[:find ?u :where [?u :user/id]] database))))
+
+
+;; (defn get-user-from-db [database id]
+;;   (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))]
+;;     (construct-user entity)))
+;; (get-user-from-db db 23)
+
+;; (defn update-user-nick [connection database user-id new-nick]
+;;   (let [[entity-id] (first (peer/q `[:find ?u :where [?u :user/id ~user-id]] database))
+;;         update-tx [{:db/id entity-id :user/nick new-nick}]]
+;;     @(peer/transact connection update-tx)))
+
+;; (defn queue-value-for-user [connection database user-id value]
+;;   (let [[user-entity-id] (first (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database user-id))
+;;         update-tx [{:db/id (peer/tempid :db.part/user) :value/content value :value/queuer user-entity-id :value/queue-time (new java.util.Date)}]]
+;;     @(peer/transact connection update-tx)))
+
+;; (defn queued-entities-for-user [database user-id]
+;;   (map first
+;;        (peer/q '[:find ?q :in $ ?i :where
+;;                  [?u :user/id ?i]
+;;                  [?q :value/queuer ?u]
+;;                  [(missing? $ ?q :value/pop-time)]] database user-id)))
+
+;; (defn pop-value-for-user [connection database user-id value]
+;;   (let [users-queue (queued-entities-for-user database user-id)
+;;         value-to-pop (first (sort-by #(:value/queue-time (peer/entity database %)) users-queue))
+;;         update-tx [{:db/id value-to-pop :value/pop-time (new java.util.Date)}]]
+;;     @(peer/transact connection update-tx)))
+
 (defresource user-by-id-resource [id]
   json-resource
   :allowed-methods [:get :delete]
-  :exists? (fn [_] (let [user (get-user id)]
-                     (if-not (nil? user) {::user user})))
-  :existed? (fn [_] (nil? (get-user id)))
+  :exists? (request-handler
+             (let [user (database-> (get-user-from-db id))]
+               (when user {::user user})))
+
+  ;; :exists? (fn [_] (let [user (get-user id)]
+  ;;                    (if-not (nil? user) {::user user})))
   :delete! (fn [_] (delete-user id))
   :handle-ok ::user)
 
