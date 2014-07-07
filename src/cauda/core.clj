@@ -19,19 +19,6 @@
 (defn get-user [id]
   (get @users id))
 
-(defn delete-user [id]
-  (log/info "Deleting user " id)
-  (dosync (alter users dissoc id nil)))
-
-(defn add-user [data]
-  (dosync
-   (swap! user-counter inc)
-   (let [id @user-counter]
-     (log/info "Adding user for id " id " and data " data)
-     (alter users assoc  id data)
-     (alter queues assoc id [])
-     id)))
-
 (defn all-users [] @users)
 
 (defn all-queues [] @queues)
@@ -158,6 +145,14 @@
   `(fn [~'context] ~@rest))
 
 (defn construct-user [entity] {(:user/id entity) {:nick (:user/nick entity)}})
+(defn add-user [data]
+  (dosync
+   (swap! user-counter inc)
+   (let [id @user-counter]
+     (log/info "Adding user for id " id " and data " data)
+     (alter users assoc  id data)
+     (alter queues assoc id [])
+     id)))
 
 (defn get-user-from-db [database id]
   (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))]
@@ -199,7 +194,7 @@
 
 (defresource user-by-id-resource [id]
   json-resource
-  :allowed-methods [:get :delete]
+  :allowed-methods [:get]
   :exists? (request-handler
              (let [user (database-> (get-user-from-db id))]
                (when user {::user user})))
@@ -222,7 +217,7 @@
 
 (defresource users-queue-resource [id]
   json-resource
-  :allowed-methods [:get :delete :post]
+  :allowed-methods [:get :post]
   :exists? (fn [_] (let [user (get-user id)]
                      (if-not (nil? user) {::user user})))
   :existed? (fn [_] (nil? (get-user id)))

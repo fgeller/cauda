@@ -43,7 +43,7 @@
 
       (against-background (after :facts (cleanup))))
 
-(fact "adding and deleting a user"
+(fact "adding a user"
       (let [request (body (content-type (request :post "/users") "application/json") "{\"nick\": \"felix\"}")
             response (handlers request)]
         (:status response) => 201)
@@ -51,14 +51,6 @@
       (let [response (handlers (request :get "/users"))]
         (:status response) => 200
         (:body response) => "{\"1\":{\"nick\":\"felix\"}}")
-
-      (let [request (request :delete "/users/1")
-            response (handlers request)]
-        (:status response) => 204)
-
-      (let [response (handlers (request :get "/users"))]
-        (:status response) => 200
-        (:body response) => "{}")
 
       (against-background (after :facts (cleanup))))
 
