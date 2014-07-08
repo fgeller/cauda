@@ -201,7 +201,6 @@
 
   ;; :exists? (fn [_] (let [user (get-user id)]
   ;;                    (if-not (nil? user) {::user user})))
-  :delete! (fn [_] (delete-user id))
   :handle-ok ::user)
 
 (defresource users-resource
