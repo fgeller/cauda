@@ -145,12 +145,27 @@
   `(fn [~'context] ~@rest))
 
 (defn construct-user [entity] {(:user/id entity) {:nick (:user/nick entity)}})
-(defn add-user [data]
+
+(defn all-users-from-db [database]
+  (into {}
+        (map construct-user
+             (map (fn [[entity-id]] (peer/entity database entity-id))
+                  (peer/q `[:find ?u :where [?u :user/id]] database)))))
+
+
+
+(defn add-user-to-db [database data]
   (dosync
    (swap! user-counter inc)
    (let [id @user-counter]
-     (log/info "Adding user for id " id " and data " data)
-     (alter users assoc  id data)
+     (let [user-data (merge
+                      {:db/id (peer/tempid :db.part/user) :user/id id}
+                      (when-let [nick (get data "nick")] {:user/nick nick}))]
+
+       (log/info "Adding user for id " id " and data " user-data)
+       (println "Adding user for id " id " and data " user-data)
+       @(peer/transact (create-database-connection) [user-data]))
+     ;; (alter users assoc  id data)
      (alter queues assoc id [])
      id)))
 
@@ -198,16 +213,20 @@
   :exists? (request-handler
              (let [user (database-> (get-user-from-db id))]
                (when user {::user user})))
-
-  ;; :exists? (fn [_] (let [user (get-user id)]
-  ;;                    (if-not (nil? user) {::user user})))
   :handle-ok ::user)
 
 (defresource users-resource
   json-resource
   :allowed-methods [:get :post]
-  :post! (fn [data] {::id (add-user (::data data))})
-  :handle-ok (fn [_] (all-users)))
+  :post! (request-handler
+          (println "outside handler" (::data context))
+          (let [data (::data context)
+                new-id (database-> (add-user-to-db data))]
+            (println "data" data "new-id" new-id)
+            (when new-id {::id new-id})))
+  :handle-ok (request-handler
+              (println "in request handler")
+              (database-> (all-users-from-db))))
 
 (defresource vetos-resource
   json-resource

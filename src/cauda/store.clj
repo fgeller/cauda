@@ -2,7 +2,8 @@
   (:require [datomic.api :only [q db] :as peer]))
 
 (def datomic-uri "datomic:mem://cauda")
-(defn drop-database [] (peer/shutdown))
+(defn shutdown-database [] (peer/shutdown true))
+(defn delete-database [] (peer/delete-database datomic-uri))
 (defn create-database [] (peer/create-database datomic-uri))
 (defn create-database-connection [] (peer/connect datomic-uri))
 (defn read-database [connection] (peer/db connection))
@@ -14,13 +15,13 @@
   (-> (create-database-connection)
       (install-schema)))
 (defmacro database-> [& rest]
-  `(-> (read-database global-connection)
+  `(-> (read-database (global-connection))
        ~@rest))
 
 (setup-database)
 
-(def global-connection (create-database-connection))
-(def db (read-database global-connection))
+(defn global-connection [] (create-database-connection))
+(def db (read-database (global-connection)))
 
 ;; (defn playing-around []
 
