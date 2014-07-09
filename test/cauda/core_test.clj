@@ -33,10 +33,10 @@
     (:status response) => 200
     (:body response) => (format "{\"data\":\"%s\"}" result)))
 
-;; (fact "listing users"
-;;       (let [response (handlers (request :get "/users"))]
-;;         (:status response) => 200
-;;         (:body response) => "{}"))
+(fact "listing users"
+      (let [response (handlers (request :get "/users"))]
+        (:status response) => 200
+        (:body response) => "{}"))
 
 (fact "adding and finding a user"
       (let [request (body (content-type (request :post "/users") "application/json") "{\"nick\": \"felix\"}")
@@ -49,16 +49,16 @@
 
       (against-background (after :facts (cleanup))))
 
-;; (fact "adding a user"
-;;       (let [request (body (content-type (request :post "/users") "application/json") "{\"nick\": \"felix\"}")
-;;             response (handlers request)]
-;;         (:status response) => 201)
+(fact "adding a user"
+      (let [request (body (content-type (request :post "/users") "application/json") "{\"nick\": \"felix\"}")
+            response (handlers request)]
+        (:status response) => 201)
 
-;;       (let [response (handlers (request :get "/users"))]
-;;         (:status response) => 200
-;;         (:body response) => "{\"1\":{\"nick\":\"felix\"}}")
+      (let [response (handlers (request :get "/users"))]
+        (:status response) => 200
+        (:body response) => "{\"1\":{\"nick\":\"felix\"}}")
 
-;;       (against-background (after :facts (cleanup))))
+      (against-background (after :facts (cleanup))))
 
 ;; (fact "listing on empty cauda"
 ;;       (let [response (handlers (request :get "/queue"))]

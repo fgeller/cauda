@@ -8,7 +8,6 @@
             [clj-http.client :as client]
             [datomic.api :only [q db] :as peer]))
 
-(defonce users (ref {}))
 (defonce queues (ref {}))
 (defonce vetos (ref {}))
 (def user-counter (atom 0))
@@ -16,10 +15,32 @@
 
 (defn now [] (System/currentTimeMillis))
 
-(defn get-user [id]
-  (get @users id))
 
-(defn all-users [] @users)
+(defn construct-user [entity] {(:user/id entity) {:nick (:user/nick entity)}})
+
+(defn all-users-from-db [database]
+  (into {}
+        (map construct-user
+             (map (fn [[entity-id]] (peer/entity database entity-id))
+                  (peer/q `[:find ?u :where [?u :user/id]] database)))))
+
+
+
+(defn add-user-to-db [database data]
+  (dosync
+   (swap! user-counter inc)
+   (let [id @user-counter]
+     (let [user-data (merge
+                      {:db/id (peer/tempid :db.part/user) :user/id id}
+                      (when-let [nick (get data "nick")] {:user/nick nick}))]
+       (log/info "Adding user for id " id " and data " user-data)
+       @(peer/transact (create-database-connection) [user-data]))
+     (alter queues assoc id [])
+     id)))
+
+(defn get-user-from-db [database id]
+  (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))]
+    (construct-user entity)))
 
 (defn all-queues [] @queues)
 
@@ -144,50 +165,6 @@
 (defmacro request-handler [& rest]
   `(fn [~'context] ~@rest))
 
-(defn construct-user [entity] {(:user/id entity) {:nick (:user/nick entity)}})
-
-(defn all-users-from-db [database]
-  (into {}
-        (map construct-user
-             (map (fn [[entity-id]] (peer/entity database entity-id))
-                  (peer/q `[:find ?u :where [?u :user/id]] database)))))
-
-
-
-(defn add-user-to-db [database data]
-  (dosync
-   (swap! user-counter inc)
-   (let [id @user-counter]
-     (let [user-data (merge
-                      {:db/id (peer/tempid :db.part/user) :user/id id}
-                      (when-let [nick (get data "nick")] {:user/nick nick}))]
-
-       (log/info "Adding user for id " id " and data " user-data)
-       (println "Adding user for id " id " and data " user-data)
-       @(peer/transact (create-database-connection) [user-data]))
-     ;; (alter users assoc  id data)
-     (alter queues assoc id [])
-     id)))
-
-(defn get-user-from-db [database id]
-  (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))]
-    (construct-user entity)))
-
-;; (defn get-all-users-from-db [database]
-;;   (map construct-user
-;;        (map (fn [[entity-id]] (peer/entity database entity-id))
-;;             (peer/q `[:find ?u :where [?u :user/id]] database))))
-
-
-;; (defn get-user-from-db [database id]
-;;   (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))]
-;;     (construct-user entity)))
-;; (get-user-from-db db 23)
-
-;; (defn update-user-nick [connection database user-id new-nick]
-;;   (let [[entity-id] (first (peer/q `[:find ?u :where [?u :user/id ~user-id]] database))
-;;         update-tx [{:db/id entity-id :user/nick new-nick}]]
-;;     @(peer/transact connection update-tx)))
 
 ;; (defn queue-value-for-user [connection database user-id value]
 ;;   (let [[user-entity-id] (first (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database user-id))
@@ -219,13 +196,10 @@
   json-resource
   :allowed-methods [:get :post]
   :post! (request-handler
-          (println "outside handler" (::data context))
           (let [data (::data context)
                 new-id (database-> (add-user-to-db data))]
-            (println "data" data "new-id" new-id)
             (when new-id {::id new-id})))
   :handle-ok (request-handler
-              (println "in request handler")
               (database-> (all-users-from-db))))
 
 (defresource vetos-resource
