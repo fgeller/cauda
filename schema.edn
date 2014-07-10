@@ -27,6 +27,13 @@
   :db/doc "A user's nick"
   :db.install/_attribute :db.part/db
   },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :user/waiting-since
+  :db/valueType :db.type/instant
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  },
 
  ;; queued values
  {

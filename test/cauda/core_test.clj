@@ -60,14 +60,14 @@
 
       (against-background (after :facts (cleanup))))
 
-;; (fact "listing on empty cauda"
-;;       (let [response (handlers (request :get "/queue"))]
-;;         (:status response) => 200
-;;         (:body response) => "{\"data\":[]}")
+(fact "listing on empty cauda"
+      (let [response (handlers (request :get "/queue"))]
+        (:status response) => 200
+        (:body response) => "{\"data\":[]}")
 
-;;       (let [response (handlers (request :get "/queue/pop"))]
-;;         (:status response) => 200
-;;         (:body response) => "{\"data\":null}"))
+      (let [response (handlers (request :get "/queue/pop"))]
+        (:status response) => 200
+        (:body response) => "{\"data\":null}"))
 
 ;; (fact "we select from users' queues in turns"
 
@@ -93,17 +93,17 @@
 
 ;;       (against-background (after :facts (cleanup))))
 
-;; (fact "queueing and finding values"
-;;       (add-test-user "gerd")
+(fact "queueing and finding values"
+      (add-test-user "gerd")
 
-;;       (let [request (body (content-type (request :post "/users/1/queue") "application/json") "{\"data\":\"tnt\"}")
-;;             response (handlers request)]
-;;         (:status response) => 201)
+      (let [request (body (content-type (request :post "/users/1/queue") "application/json") "{\"data\":\"tnt\"}")
+            response (handlers request)]
+        (:status response) => 201)
 
-;;       (let [response (handlers (request :get "/queue"))]
-;;         (:status response) => 200
-;;         (:body response) => "{\"data\":[{\"1\":\"tnt\"}]}")
-;;       (against-background (after :facts (cleanup))))
+      (let [response (handlers (request :get "/queue"))]
+        (:status response) => 200
+        (:body response) => "{\"data\":[{\"1\":\"tnt\"}]}")
+      (against-background (after :facts (cleanup))))
 
 ;; (fact "listing vetos"
 ;;     (let [response (handlers (request :get "/vetos"))]

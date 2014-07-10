@@ -15,8 +15,9 @@
 
 (defn now [] (System/currentTimeMillis))
 
-
-(defn construct-user [entity] {(:user/id entity) {:nick (:user/nick entity)}})
+(defn construct-user [entity]
+  {(:user/id entity) (merge {:nick (:user/nick entity)}
+                            (when-let [waiting-since (:user/waiting-since entity)] {:waitingSince waiting-since}))})
 
 (defn all-users-from-db [database]
   (into {}
@@ -65,16 +66,18 @@
   (dosync
    (alter queues (fn [qs] (update-in qs [id] (fn [old] (conj old data)))))))
 
-(defn update-waiting-timestamp-for-user [id timestamp]
+(defn update-waiting-timestamp-for-user [database id timestamp]
   (log/info "Updating waitingSince timestamp for user" id)
-  (set-property-on-user id :waitingSince timestamp))
+  (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))
+        user-data {:db/id (:db/id entity) :user/waiting-since (new java.util.Date timestamp)}]
+    @(peer/transact (create-database-connection) [user-data])))
 
 (defn get-user-queue [id] ((all-queues) id))
 
-(defn queue-for-user [id data]
+(defn queue-for-user [database id data]
   (push-into-user-queue id data)
-  (if-not (:waitingSince (get-user id))
-    (update-waiting-timestamp-for-user id (now)))
+  (if-not (:waitingSince (get-user-from-db database id))
+    (update-waiting-timestamp-for-user database id (now)))
   (log/info "Pushed" data "into user" id "waiting since" (:waitingSince (get-user id)) "with queue:" (get-user-queue id)))
 
 (defn apply-users-veto [id target-value]
@@ -123,14 +126,14 @@
     (log/info "Found next" value-count "values to be" (take value-count flattened-queue))
     (take value-count flattened-queue)))
 
-(defn find-next-value []
+(defn find-next-value [database]
   (let [[id value] (first (find-next-values 1))]
     (if id
       (let [new-timestamp (when-not (= 1 (count (get-user-queue id))) (now))]
         (dosync
          (swap! last-pop (fn [_] value))
          (drop-from-queue id value)
-         (update-waiting-timestamp-for-user id new-timestamp))
+         (update-waiting-timestamp-for-user database id new-timestamp))
         value))))
 
 (defn check-content-type [context content-types]
@@ -164,7 +167,6 @@
 
 (defmacro request-handler [& rest]
   `(fn [~'context] ~@rest))
-
 
 ;; (defn queue-value-for-user [connection database user-id value]
 ;;   (let [[user-entity-id] (first (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database user-id))
@@ -210,11 +212,14 @@
 (defresource users-queue-resource [id]
   json-resource
   :allowed-methods [:get :post]
-  :exists? (fn [_] (let [user (get-user id)]
-                     (if-not (nil? user) {::user user})))
-  :existed? (fn [_] (nil? (get-user id)))
-  :post! #(queue-for-user id ((::data %) "data"))
-  :handle-ok (fn [_] (get-user-queue id)))
+  :exists? (request-handler
+            (let [user (database-> (get-user-from-db id))]
+              (when user {::user user})))
+  :post! (request-handler
+          (database-> (queue-for-user id ((::data context) "data"))))
+  ;; :handle-ok (request-handler
+  ;;             (get-user-queue id))
+  )
 
 (defresource users-veto-resource [id]
   json-resource
@@ -231,7 +236,8 @@
 (defresource queue-pop-resource
   json-resource
   :allowed-methods [:get]
-  :handle-ok (fn [_] {"data" (find-next-value)}))
+  :handle-ok (request-handler
+              {"data" (database-> (find-next-value))}))
 
 (defresource queue-last-pop-resource
   json-resource
