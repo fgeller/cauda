@@ -48,19 +48,19 @@
 (defn valid-veto? [veto-info]
   (> (:validUntil veto-info) (now)))
 
-(defn all-active-vetos []
-  (let [vetos (filter identity (map (fn [[_ u]] (:vetos u)) (all-users)))
+(defn all-active-vetos [database]
+  (let [vetos (filter identity (map (fn [[_ u]] (:vetos u)) (all-users-from-db database)))
         active-vetos (flatten (map (fn [veto]
                                      (map (fn [[veto-target veto-info]] (if (valid-veto? veto-info) veto-target))
                                           veto))
                                    vetos))]
     active-vetos))
 
-(defn set-property-on-user [id key val]
-  (dosync
-   (alter users
-          (fn [old-users]
-            (update-in old-users [id] (fn [old-user] (update-in old-user [key] (fn [_] val))))))))
+;; (defn set-property-on-user [id key val]
+;;   (dosync
+;;    (alter users
+;;           (fn [old-users]
+;;             (update-in old-users [id] (fn [old-user] (update-in old-user [key] (fn [_] val))))))))
 
 (defn push-into-user-queue [id data]
   (dosync
@@ -78,23 +78,24 @@
   (push-into-user-queue id data)
   (if-not (:waitingSince (get-user-from-db database id))
     (update-waiting-timestamp-for-user database id (now)))
-  (log/info "Pushed" data "into user" id "waiting since" (:waitingSince (get-user id)) "with queue:" (get-user-queue id)))
+  (log/info "Pushed" data "into user" id "waiting since" (:waitingSince (get-user-from-db database id)) "with queue:" (get-user-queue id)))
 
-(defn apply-users-veto [id target-value]
-  (let [vetoing-user (get-user id)
+(defn apply-users-veto [database id target-value]
+  (let [vetoing-user (get-user-from-db database id)
         vetos (:vetos vetoing-user)]
     (if (or (nil? vetos) (nil? (vetos target-value)) (< (:validUntil (vetos target-value)) (now)))
       (let [new-vetos (update-in vetos [target-value] (fn [_] {:validUntil (+ (now) (* 1000 60 60 24))}))]
-        (set-property-on-user id :vetos new-vetos)))))
+        ;; (set-property-on-user id :vetos new-vetos)
+        ))))
 
-(defn veto-allowed-for-user? [id]
-  (let [vetos (:vetos (get-user id))]
+(defn veto-allowed-for-user? [database id]
+  (let [vetos (:vetos (get-user-from-db database id))]
     (if vetos (> 5 (count (filter (fn [[_ info]] (valid-veto? info)) vetos)))
       true)))
 
-(defn drop-from-queue [id value]
+(defn drop-from-queue [database id value]
   (let [queue ((all-queues) id)
-        [dropped-vetos remainder] (split-with (fn [value] (some #{value} (all-active-vetos))) queue)]
+        [dropped-vetos remainder] (split-with (fn [value] (some #{value} (all-active-vetos database))) queue)]
     (log/info "Drop leading vetos " dropped-vetos "for value" value "from user" id "queue:" queue)
     (alter queues #(assoc % id (vec (rest remainder))))))
 
@@ -109,10 +110,10 @@
             next-acc (concat acc (map (fn [user] [user (first (get queues user))]) users))]
         (flatten-user-queues (dec count) users next-queues next-acc))))
 
-(defn find-next-values [value-count]
-  (let [longest-waiting-users (find-longest-waiting-users (all-users) (count (all-users)))
+(defn find-next-values [database value-count]
+  (let [longest-waiting-users (find-longest-waiting-users (all-users-from-db database) (count (all-users-from-db database)))
         sorted-users-queues (map (fn [id] [id (get-user-queue id)]) longest-waiting-users)
-        active-vetos (all-active-vetos)
+        active-vetos (all-active-vetos database)
         filtered-users-queues (zipmap longest-waiting-users
                                       (map (fn [[id queue]] (filter (fn [value] (not-any? #(= % value) active-vetos))
                                                                     queue))
@@ -127,12 +128,12 @@
     (take value-count flattened-queue)))
 
 (defn find-next-value [database]
-  (let [[id value] (first (find-next-values 1))]
+  (let [[id value] (first (find-next-values database 1))]
     (if id
       (let [new-timestamp (when-not (= 1 (count (get-user-queue id))) (now))]
         (dosync
          (swap! last-pop (fn [_] value))
-         (drop-from-queue id value)
+         (drop-from-queue database id value)
          (update-waiting-timestamp-for-user database id new-timestamp))
         value))))
 
@@ -207,7 +208,7 @@
 (defresource vetos-resource
   json-resource
   :allowed-methods [:get]
-  :handle-ok (fn [_] (all-active-vetos)))
+  :handle-ok (request-handler (database-> (all-active-vetos))))
 
 (defresource users-queue-resource [id]
   json-resource
@@ -224,13 +225,13 @@
 (defresource users-veto-resource [id]
   json-resource
   :allowed-methods [:post]
-  :exists? (fn [_] (let [user (get-user id)]
-                     (if user {::user user})))
-  :existed? (fn [_] (nil? (get-user id)))
+  :exists? (request-handler
+            (when-let [user (database-> (get-user-from-db id))] {::user user}))
   :malformed? #(or
                 (not (veto-allowed-for-user? id))
                 (parse-json % ::data))
-  :post! #(apply-users-veto id ((::data %) "data"))
+  :post! (request-handler
+          (database-> (apply-users-veto id ((::data context) "data"))))
   :handle-ok (fn [_] nil))
 
 (defresource queue-pop-resource
@@ -248,7 +249,7 @@
   json-resource
   :allowed-methods [:get]
   :handle-ok (fn [_] {"data" (map (fn [[user-id value]]  {user-id value})
-                                  (find-next-values 5))}))
+                                  (database-> (find-next-values 5)))}))
 
 (defroutes app-routes
   (ANY "/queue" [] queue-resource)

@@ -10,7 +10,6 @@
   (dosync
    (delete-database)
    (setup-database)
-   (alter users (fn [_] {}))
    (alter queues (fn [_] {}))
    (alter vetos (fn [_] {}))
    (swap! user-counter (fn [_] 0))
