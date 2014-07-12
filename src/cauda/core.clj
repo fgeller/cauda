@@ -218,9 +218,8 @@
               (when user {::user user})))
   :post! (request-handler
           (database-> (queue-for-user id ((::data context) "data"))))
-  ;; :handle-ok (request-handler
-  ;;             (get-user-queue id))
-  )
+  :handle-ok (request-handler
+              (get-user-queue id)))
 
 (defresource users-veto-resource [id]
   json-resource
