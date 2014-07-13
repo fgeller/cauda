@@ -34,7 +34,7 @@
      (let [user-data (merge
                       {:db/id (peer/tempid :db.part/user) :user/id id}
                       (when-let [nick (get data "nick")] {:user/nick nick}))]
-       (log/info "Adding user for id " id " and data " user-data)
+       (println "Adding user for id " id " and data " user-data)
        @(peer/transact (create-database-connection) [user-data]))
      (alter queues assoc id [])
      id)))
@@ -56,20 +56,17 @@
                                    vetos))]
     active-vetos))
 
-;; (defn set-property-on-user [id key val]
-;;   (dosync
-;;    (alter users
-;;           (fn [old-users]
-;;             (update-in old-users [id] (fn [old-user] (update-in old-user [key] (fn [_] val))))))))
-
 (defn push-into-user-queue [id data]
   (dosync
    (alter queues (fn [qs] (update-in qs [id] (fn [old] (conj old data)))))))
 
 (defn update-waiting-timestamp-for-user [database id timestamp]
-  (log/info "Updating waitingSince timestamp for user" id)
+  (println "Updating waitingSince to" timestamp "for user" id)
   (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))
-        user-data {:db/id (:db/id entity) :user/waiting-since (new java.util.Date timestamp)}]
+        entity-id (:db/id entity)
+        user-data (if timestamp
+                    [:db/add entity-id :user/waiting-since (new java.util.Date timestamp)]
+                    [:db/retract entity-id :user/waiting-since (:user/waiting-since entity)])]
     @(peer/transact (create-database-connection) [user-data])))
 
 (defn get-user-queue [id] ((all-queues) id))
@@ -78,7 +75,7 @@
   (push-into-user-queue id data)
   (if-not (:waitingSince (get-user-from-db database id))
     (update-waiting-timestamp-for-user database id (now)))
-  (log/info "Pushed" data "into user" id "waiting since" (:waitingSince (get-user-from-db database id)) "with queue:" (get-user-queue id)))
+  (println "Pushed" data "into user" id "waiting since" (:waitingSince (get-user-from-db database id)) "with queue:" (get-user-queue id)))
 
 (defn apply-users-veto [database id target-value]
   (let [vetoing-user (get-user-from-db database id)
@@ -96,7 +93,7 @@
 (defn drop-from-queue [database id value]
   (let [queue ((all-queues) id)
         [dropped-vetos remainder] (split-with (fn [value] (some #{value} (all-active-vetos database))) queue)]
-    (log/info "Drop leading vetos " dropped-vetos "for value" value "from user" id "queue:" queue)
+    (println "Drop leading vetos " dropped-vetos "for value" value "from user" id "queue:" queue)
     (alter queues #(assoc % id (vec (rest remainder))))))
 
 (defn find-longest-waiting-users [users user-count]
@@ -124,7 +121,7 @@
                                                      filtered-users-queues
                                                      nil)
         flattened-queue (filter (fn [[_ value]] value) padded-flattened-queues)]
-    (log/info "Found next" value-count "values to be" (take value-count flattened-queue))
+    (println "Found next" value-count "values to be" (take value-count flattened-queue))
     (take value-count flattened-queue)))
 
 (defn find-next-value [database]

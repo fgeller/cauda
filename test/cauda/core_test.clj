@@ -68,29 +68,29 @@
         (:status response) => 200
         (:body response) => "{\"data\":null}"))
 
-;; (fact "we select from users' queues in turns"
+(fact "we select from users' queues in turns"
 
-;;       (add-test-user "fix")
-;;       (add-test-user "fox")
+      (add-test-user "fix")
+      (add-test-user "fox")
 
-;;       (queue-test-value 1 "tnt")
-;;       (queue-test-value 1 "tnt2")
+      (queue-test-value 1 "tnt")
+      (queue-test-value 1 "tnt2")
 
-;;       (Thread/sleep 100)
+      (Thread/sleep 100)
 
-;;       (queue-test-value 2 "acme")
-;;       (queue-test-value 2 "acme2")
+      (queue-test-value 2 "acme")
+      (queue-test-value 2 "acme2")
 
-;;       (let [response (handlers (request :get "/queue"))]
-;;         (:status response) => 200
-;;         (:body response) => "{\"data\":[{\"1\":\"tnt\"},{\"2\":\"acme\"},{\"1\":\"tnt2\"},{\"2\":\"acme2\"}]}")
+      (let [response (handlers (request :get "/queue"))]
+        (:status response) => 200
+        (:body response) => "{\"data\":[{\"1\":\"tnt\"},{\"2\":\"acme\"},{\"1\":\"tnt2\"},{\"2\":\"acme2\"}]}")
 
-;;       (expect-pop-result "tnt")
-;;       (expect-pop-result "acme")
-;;       (expect-pop-result "tnt2")
-;;       (expect-pop-result "acme2")
+      (expect-pop-result "tnt")
+      (expect-pop-result "acme")
+      (expect-pop-result "tnt2")
+      (expect-pop-result "acme2")
 
-;;       (against-background (after :facts (cleanup))))
+      (against-background (after :facts (cleanup))))
 
 (fact "queueing and finding values"
       (add-test-user "gerd")
@@ -104,10 +104,10 @@
         (:body response) => "{\"data\":[{\"1\":\"tnt\"}]}")
       (against-background (after :facts (cleanup))))
 
-;; (fact "listing vetos"
-;;     (let [response (handlers (request :get "/vetos"))]
-;;       (:status response) => 200
-;;       (:body response) => "[]"))
+(fact "listing vetos"
+    (let [response (handlers (request :get "/vetos"))]
+      (:status response) => 200
+      (:body response) => "[]"))
 
 ;; (fact "adding a veto means a song is ignored while veto is valid"
 ;;       (add-test-user "gerd")
