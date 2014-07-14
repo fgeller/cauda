@@ -65,4 +65,27 @@
   :db.install/_attribute :db.part/db
   }
 
+ ;; veto values
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :veto/content
+  :db/valueType :db.type/string
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :veto/user
+  :db/valueType :db.type/ref
+  :db/cardinality :db.cardinality/many
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :veto/time
+  :db/valueType :db.type/instant
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  }
+
 ]

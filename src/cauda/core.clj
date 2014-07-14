@@ -77,13 +77,22 @@
     (update-waiting-timestamp-for-user database id (now)))
   (println "Pushed" data "into user" id "waiting since" (:waitingSince (get-user-from-db database id)) "with queue:" (get-user-queue id)))
 
-(defn apply-users-veto [database id target-value]
-  (let [vetoing-user (get-user-from-db database id)
+(defn apply-users-veto [database user-id target-value]
+  (let [vetoing-user (get-user-from-db database user-id)
         vetos (:vetos vetoing-user)]
     (if (or (nil? vetos) (nil? (vetos target-value)) (< (:validUntil (vetos target-value)) (now)))
-      (let [new-vetos (update-in vetos [target-value] (fn [_] {:validUntil (+ (now) (* 1000 60 60 24))}))]
-        ;; (set-property-on-user id :vetos new-vetos)
-        ))))
+      (let [veto-tx {:db/id (peer/tempid :db.part/user) :veto/content target-value :veto/user user-id :veto/time (new java.util.Date)}]
+        @(peer/transact (create-database-connection) [veto-tx])))))
+
+(defn update-waiting-timestamp-for-user [database id timestamp]
+  (println "Updating waitingSince to" timestamp "for user" id)
+  (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))
+        entity-id (:db/id entity)
+        user-data (if timestamp
+                    [:db/add entity-id :user/waiting-since (new java.util.Date timestamp)]
+                    [:db/retract entity-id :user/waiting-since (:user/waiting-since entity)])]
+    @(peer/transact (create-database-connection) [user-data])))
+
 
 (defn veto-allowed-for-user? [database id]
   (let [vetos (:vetos (get-user-from-db database id))]
@@ -224,11 +233,10 @@
   :exists? (request-handler
             (when-let [user (database-> (get-user-from-db id))] {::user user}))
   :malformed? #(or
-                (not (veto-allowed-for-user? id))
+                (not (database-> (veto-allowed-for-user? id)))
                 (parse-json % ::data))
   :post! (request-handler
-          (database-> (apply-users-veto id ((::data context) "data"))))
-  :handle-ok (fn [_] nil))
+          (database-> (apply-users-veto id ((::data context) "data")))))
 
 (defresource queue-pop-resource
   json-resource
