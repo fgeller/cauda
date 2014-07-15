@@ -49,12 +49,10 @@
   (> (:validUntil veto-info) (now)))
 
 (defn all-active-vetos [database]
-  (let [vetos (filter identity (map (fn [[_ u]] (:vetos u)) (all-users-from-db database)))
-        active-vetos (flatten (map (fn [veto]
-                                     (map (fn [[veto-target veto-info]] (if (valid-veto? veto-info) veto-target))
-                                          veto))
-                                   vetos))]
-    active-vetos))
+  (flatten
+   (map
+    (fn [[content instant]] (when (< (- (now) (* 24 60 60 1000))  (.getTime instant)) content))
+    (peer/q `[:find ?vc ?vt :where [?v :veto/content ?vc] [?v :veto/time ?vt]] database))))
 
 (defn push-into-user-queue [id data]
   (dosync
@@ -80,7 +78,7 @@
 (defn apply-users-veto [database user-id target-value]
   (let [vetoing-user (get-user-from-db database user-id)
         vetos (:vetos vetoing-user)]
-    (if (or (nil? vetos) (nil? (vetos target-value)) (< (:validUntil (vetos target-value)) (now)))
+    (if (or (nil? vetos) (nil? (vetos target-value)) (< (:validUntil (vetos target-value)) (now))) ;; TODO -- check validUntil
       (let [veto-tx {:db/id (peer/tempid :db.part/user) :veto/content target-value :veto/user user-id :veto/time (new java.util.Date)}]
         @(peer/transact (create-database-connection) [veto-tx])))))
 

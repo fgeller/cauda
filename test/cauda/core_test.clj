@@ -109,24 +109,24 @@
       (:status response) => 200
       (:body response) => "[]"))
 
-;; (fact "adding a veto means a song is ignored while veto is valid"
-;;       (add-test-user "gerd")
-;;       (let [request (body (content-type (request :post "/users/1/veto") "application/json") "{\"data\": \"acme\"}")
-;;             response (handlers request)]
-;;         (:status response) => 201)
+(fact "adding a veto means a song is ignored while veto is valid"
+      (add-test-user "gerd")
+      (let [request (body (content-type (request :post "/users/1/veto") "application/json") "{\"data\": \"acme\"}")
+            response (handlers request)]
+        (:status response) => 201)
 
-;;       (let [response (handlers (request :get "/vetos"))]
-;;         (:status response) => 200
-;;         (:body response) => "[\"acme\"]")
+      (let [response (handlers (request :get "/vetos"))]
+        (:status response) => 200
+        (:body response) => "[\"acme\"]")
 
-;;       (queue-test-value 1 "tnt")
-;;       (queue-test-value 1 "acme")
+      (queue-test-value 1 "tnt")
+      (queue-test-value 1 "acme")
 
-;;       (let [response (handlers (request :get "/queue/pop"))]
-;;         (:status response) => 200
-;;         (:body response) => "{\"data\":\"tnt\"}")
+      (let [response (handlers (request :get "/queue/pop"))]
+        (:status response) => 200
+        (:body response) => "{\"data\":\"tnt\"}")
 
-;;       (against-background (after :facts (cleanup))))
+      (against-background (after :facts (cleanup))))
 
 ;; (fact "we drop only veto'd values in front of a selected value"
 ;;       (add-test-user "gerd")
