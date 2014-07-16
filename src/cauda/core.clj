@@ -52,7 +52,9 @@
   (flatten
    (map
     (fn [[content instant]] (when (< (- (now) (* 24 60 60 1000))  (.getTime instant)) content))
-    (peer/q `[:find ?vc ?vt :where [?v :veto/content ?vc] [?v :veto/time ?vt]] database))))
+    (reverse
+     (sort-by second
+              (peer/q `[:find ?vc ?vt :where [?v :veto/content ?vc] [?v :veto/time ?vt]] database))))))
 
 (defn push-into-user-queue [id data]
   (dosync
@@ -91,10 +93,11 @@
                     [:db/retract entity-id :user/waiting-since (:user/waiting-since entity)])]
     @(peer/transact (create-database-connection) [user-data])))
 
-
 (defn veto-allowed-for-user? [database id]
-  (let [vetos (:vetos (get-user-from-db database id))]
-    (if vetos (> 5 (count (filter (fn [[_ info]] (valid-veto? info)) vetos)))
+  (let [[user-entity-id] (first (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id))
+        vetos (peer/q '[:find ?t :in $ ?i :where [?v :veto/user ?u] [?v :veto/time ?t]] database user-entity-id)]
+    (if vetos
+      (> 5 (count (filter (fn [[instant]] (< (- (now) (* 24 60 60 1000))  (.getTime instant))) vetos)))
       true)))
 
 (defn drop-from-queue [database id value]
@@ -184,6 +187,7 @@
 ;;                  [?u :user/id ?i]
 ;;                  [?q :value/queuer ?u]
 ;;                  [(missing? $ ?q :value/pop-time)]] database user-id)))
+
 
 ;; (defn pop-value-for-user [connection database user-id value]
 ;;   (let [users-queue (queued-entities-for-user database user-id)
