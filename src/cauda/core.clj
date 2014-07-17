@@ -48,6 +48,11 @@
 (defn valid-veto? [veto-info]
   (> (:validUntil veto-info) (now)))
 
+(defn vetos-for-user-from-db [database user-id]
+  (let [[user-entity-id]  (first (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database user-id))
+        vetos (peer/q '[:find ?c ?t :in $ ?i :where [?v :veto/user ?u] [?v :veto/content ?c] [?v :veto/time ?t]] database user-entity-id)]
+    (into {} vetos)))
+
 (defn all-active-vetos [database]
   (flatten
    (map
@@ -79,8 +84,8 @@
 
 (defn apply-users-veto [database user-id target-value]
   (let [vetoing-user (get-user-from-db database user-id)
-        vetos (:vetos vetoing-user)]
-    (if (or (nil? vetos) (nil? (vetos target-value)) (< (:validUntil (vetos target-value)) (now))) ;; TODO -- check validUntil
+        vetos (vetos-for-user-from-db database user-id)]
+    (when (or  (empty? vetos) (nil? (vetos target-value)) (< (- (now) (* 1000 60 60 24))(vetos target-value)))
       (let [veto-tx {:db/id (peer/tempid :db.part/user) :veto/content target-value :veto/user user-id :veto/time (new java.util.Date)}]
         @(peer/transact (create-database-connection) [veto-tx])))))
 
@@ -93,11 +98,10 @@
                     [:db/retract entity-id :user/waiting-since (:user/waiting-since entity)])]
     @(peer/transact (create-database-connection) [user-data])))
 
-(defn veto-allowed-for-user? [database id]
-  (let [[user-entity-id] (first (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id))
-        vetos (peer/q '[:find ?t :in $ ?i :where [?v :veto/user ?u] [?v :veto/time ?t]] database user-entity-id)]
+(defn veto-allowed-for-user? [database user-id]
+  (let [vetos (vetos-for-user-from-db database user-id)]
     (if vetos
-      (> 5 (count (filter (fn [[instant]] (< (- (now) (* 24 60 60 1000))  (.getTime instant))) vetos)))
+      (> 5 (count (filter (fn [[_ instant]] (< (- (now) (* 24 60 60 1000))  (.getTime instant))) vetos)))
       true)))
 
 (defn drop-from-queue [database id value]
