@@ -9,7 +9,6 @@
             [datomic.api :only [q db] :as peer]))
 
 (defonce queues (ref {}))
-(defonce vetos (ref {}))
 (def user-counter (atom 0))
 (def last-pop (atom nil))
 
@@ -45,8 +44,8 @@
 
 (defn all-queues [] @queues)
 
-(defn valid-veto? [veto-info]
-  (> (:validUntil veto-info) (now)))
+(defn valid-veto-time? [instant]
+  (< (- (now) (* 24 60 60 1000))  (.getTime instant)))
 
 (defn vetos-for-user-from-db [database user-id]
   (let [[user-entity-id]  (first (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database user-id))
@@ -56,7 +55,7 @@
 (defn all-active-vetos [database]
   (flatten
    (map
-    (fn [[content instant]] (when (< (- (now) (* 24 60 60 1000))  (.getTime instant)) content))
+    (fn [[content instant]] (when (valid-veto-time? instant) content))
     (reverse
      (sort-by second
               (peer/q `[:find ?vc ?vt :where [?v :veto/content ?vc] [?v :veto/time ?vt]] database))))))
@@ -85,7 +84,7 @@
 (defn apply-users-veto [database user-id target-value]
   (let [vetoing-user (get-user-from-db database user-id)
         vetos (vetos-for-user-from-db database user-id)]
-    (when (or  (empty? vetos) (nil? (vetos target-value)) (< (- (now) (* 1000 60 60 24))(vetos target-value)))
+    (when (or  (empty? vetos) (nil? (vetos target-value)) (valid-veto-time? (vetos target-value)))
       (let [veto-tx {:db/id (peer/tempid :db.part/user) :veto/content target-value :veto/user user-id :veto/time (new java.util.Date)}]
         @(peer/transact (create-database-connection) [veto-tx])))))
 
@@ -101,7 +100,7 @@
 (defn veto-allowed-for-user? [database user-id]
   (let [vetos (vetos-for-user-from-db database user-id)]
     (if vetos
-      (> 5 (count (filter (fn [[_ instant]] (< (- (now) (* 24 60 60 1000))  (.getTime instant))) vetos)))
+      (> 5 (count (filter (fn [[_ instant]] (valid-veto-time? instant)) vetos)))
       true)))
 
 (defn drop-from-queue [database id value]
