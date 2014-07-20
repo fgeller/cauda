@@ -24,8 +24,6 @@
              (map (fn [[entity-id]] (peer/entity database entity-id))
                   (peer/q `[:find ?u :where [?u :user/id]] database)))))
 
-
-
 (defn add-user-to-db [database data]
   (dosync
    (swap! user-counter inc)
@@ -60,9 +58,10 @@
      (sort-by second
               (peer/q `[:find ?vc ?vt :where [?v :veto/content ?vc] [?v :veto/time ?vt]] database))))))
 
-(defn push-into-user-queue [id data]
-  (dosync
-   (alter queues (fn [qs] (update-in qs [id] (fn [old] (conj old data)))))))
+(defn queue-value-for-user [database user-id value]
+  (let [[user-entity-id] (first (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database user-id))
+        update-tx [{:db/id (peer/tempid :db.part/user) :value/content value :value/queuer user-entity-id :value/queue-time (new java.util.Date)}]]
+    @(peer/transact (global-connection) update-tx)))
 
 (defn update-waiting-timestamp-for-user [database id timestamp]
   (println "Updating waitingSince to" timestamp "for user" id)
@@ -74,9 +73,16 @@
     @(peer/transact (create-database-connection) [user-data])))
 
 (defn get-user-queue [id] ((all-queues) id))
+;; (defn queued-entities-for-user [database user-id]
+;;   (map first
+;;        (peer/q '[:find ?q :in $ ?i :where
+;;                  [?u :user/id ?i]
+;;                  [?q :value/queuer ?u]
+;;                  [(missing? $ ?q :value/pop-time)]] database user-id)))
+
 
 (defn queue-for-user [database id data]
-  (push-into-user-queue id data)
+  (queue-value-for-user database id data)
   (if-not (:waitingSince (get-user-from-db database id))
     (update-waiting-timestamp-for-user database id (now)))
   (println "Pushed" data "into user" id "waiting since" (:waitingSince (get-user-from-db database id)) "with queue:" (get-user-queue id)))
@@ -178,18 +184,6 @@
 
 (defmacro request-handler [& rest]
   `(fn [~'context] ~@rest))
-
-;; (defn queue-value-for-user [connection database user-id value]
-;;   (let [[user-entity-id] (first (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database user-id))
-;;         update-tx [{:db/id (peer/tempid :db.part/user) :value/content value :value/queuer user-entity-id :value/queue-time (new java.util.Date)}]]
-;;     @(peer/transact connection update-tx)))
-
-;; (defn queued-entities-for-user [database user-id]
-;;   (map first
-;;        (peer/q '[:find ?q :in $ ?i :where
-;;                  [?u :user/id ?i]
-;;                  [?q :value/queuer ?u]
-;;                  [(missing? $ ?q :value/pop-time)]] database user-id)))
 
 
 ;; (defn pop-value-for-user [connection database user-id value]
