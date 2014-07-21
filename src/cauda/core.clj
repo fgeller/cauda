@@ -72,20 +72,20 @@
                     [:db/retract entity-id :user/waiting-since (:user/waiting-since entity)])]
     @(peer/transact (create-database-connection) [user-data])))
 
-(defn get-user-queue [id] ((all-queues) id))
-;; (defn queued-entities-for-user [database user-id]
-;;   (map first
-;;        (peer/q '[:find ?q :in $ ?i :where
-;;                  [?u :user/id ?i]
-;;                  [?q :value/queuer ?u]
-;;                  [(missing? $ ?q :value/pop-time)]] database user-id)))
+;; (defn get-user-queue [id] ((all-queues) id))
+(defn get-user-queue [database user-id]
+  (map first
+       (peer/q '[:find ?q :in $ ?i :where
+                 [?u :user/id ?i]
+                 [?q :value/queuer ?u]
+                 [(missing? $ ?q :value/pop-time)]] database user-id)))
 
 
 (defn queue-for-user [database id data]
   (queue-value-for-user database id data)
   (if-not (:waitingSince (get-user-from-db database id))
     (update-waiting-timestamp-for-user database id (now)))
-  (println "Pushed" data "into user" id "waiting since" (:waitingSince (get-user-from-db database id)) "with queue:" (get-user-queue id)))
+  (println "Pushed" data "into user" id "waiting since" (:waitingSince (get-user-from-db database id)) "with queue:" (get-user-queue database id)))
 
 (defn apply-users-veto [database user-id target-value]
   (let [vetoing-user (get-user-from-db database user-id)
@@ -128,7 +128,7 @@
 
 (defn find-next-values [database value-count]
   (let [longest-waiting-users (find-longest-waiting-users (all-users-from-db database) (count (all-users-from-db database)))
-        sorted-users-queues (map (fn [id] [id (get-user-queue id)]) longest-waiting-users)
+        sorted-users-queues (map (fn [id] [id (get-user-queue database id)]) longest-waiting-users)
         active-vetos (all-active-vetos database)
         filtered-users-queues (zipmap longest-waiting-users
                                       (map (fn [[id queue]] (filter (fn [value] (not-any? #(= % value) active-vetos))
@@ -146,7 +146,7 @@
 (defn find-next-value [database]
   (let [[id value] (first (find-next-values database 1))]
     (if id
-      (let [new-timestamp (when-not (= 1 (count (get-user-queue id))) (now))]
+      (let [new-timestamp (when-not (= 1 (count (get-user-queue database id))) (now))]
         (dosync
          (swap! last-pop (fn [_] value))
          (drop-from-queue database id value)
@@ -224,7 +224,7 @@
   :post! (request-handler
           (database-> (queue-for-user id ((::data context) "data"))))
   :handle-ok (request-handler
-              (get-user-queue id)))
+              (database-> (get-user-queue id))))
 
 (defresource users-veto-resource [id]
   json-resource
