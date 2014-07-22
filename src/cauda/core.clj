@@ -72,14 +72,16 @@
                     [:db/retract entity-id :user/waiting-since (:user/waiting-since entity)])]
     @(peer/transact (create-database-connection) [user-data])))
 
-;; (defn get-user-queue [id] ((all-queues) id))
 (defn get-user-queue [database user-id]
-  (map first
-       (peer/q '[:find ?q :in $ ?i :where
-                 [?u :user/id ?i]
-                 [?q :value/queuer ?u]
-                 [(missing? $ ?q :value/pop-time)]] database user-id)))
-
+  (let [result (peer/q '[:find ?q :in $ ?i :where
+                         [?u :user/id ?i]
+                         [?q :value/queuer ?u]
+                         [?q :value/content ?c]
+                         [(missing? $ ?q :value/pop-time)]] database user-id)
+        entities (map (fn [[entity-id]] (peer/entity database entity-id)) result)
+        sorted-entities (sort-by #(:value/queue-time %) entities)
+        contents (map #(:value/content %) sorted-entities)]
+    contents))
 
 (defn queue-for-user [database id data]
   (queue-value-for-user database id data)
