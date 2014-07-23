@@ -151,7 +151,8 @@
       (let [new-timestamp (when-not (= 1 (count (get-user-queue database id))) (now))]
         (dosync
          (swap! last-pop (fn [_] value))
-         (drop-from-queue database id value)
+         (pop-value-for-user database id value)
+         ;; (drop-from-queue database id value)
          (update-waiting-timestamp-for-user database id new-timestamp))
         value))))
 
@@ -187,12 +188,27 @@
 (defmacro request-handler [& rest]
   `(fn [~'context] ~@rest))
 
+;; (defn get-user-queue [database user-id]
+;;   (let [result (peer/q '[:find ?q :in $ ?i :where
+;;                          [?u :user/id ?i]
+;;                          [?q :value/queuer ?u]
+;;                          [?q :value/content ?c]
+;;                          [(missing? $ ?q :value/pop-time)]] database user-id)
+;;         entities (map (fn [[entity-id]] (peer/entity database entity-id)) result)
+;;         sorted-entities (sort-by #(:value/queue-time %) entities)
+;;         contents (map #(:value/content %) sorted-entities)]
+;;     contents))
 
-;; (defn pop-value-for-user [connection database user-id value]
-;;   (let [users-queue (queued-entities-for-user database user-id)
-;;         value-to-pop (first (sort-by #(:value/queue-time (peer/entity database %)) users-queue))
-;;         update-tx [{:db/id value-to-pop :value/pop-time (new java.util.Date)}]]
-;;     @(peer/transact connection update-tx)))
+(defn pop-value-for-user [database user-id value]
+  (let [result (peer/q '[:find ?q :in $ ?i :where
+                         [?u :user/id ?i]
+                         [?q :value/queuer ?u]
+                         [(missing? $ ?q :value/pop-time)]] database user-id)
+        entities (map (fn [[entity-id]] (peer/entity database entity-id)) result)
+        sorted-entities (sort-by #(:value/queue-time %) entities)
+        value-to-pop (first sorted-entities)
+        update-tx [{:db/id (:db/id value-to-pop) :value/pop-time (new java.util.Date)}]]
+    @(peer/transact (global-connection) update-tx)))
 
 (defresource user-by-id-resource [id]
   json-resource
