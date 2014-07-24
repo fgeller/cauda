@@ -10,7 +10,6 @@
   (dosync
    (delete-database)
    (setup-database)
-   (alter queues (fn [_] {}))
    (swap! user-counter (fn [_] 0))
    (swap! last-pop (fn [_] 0))))
 

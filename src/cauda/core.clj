@@ -8,7 +8,6 @@
             [clj-http.client :as client]
             [datomic.api :only [q db] :as peer]))
 
-(defonce queues (ref {}))
 (def user-counter (atom 0))
 (def last-pop (atom nil))
 
@@ -33,14 +32,11 @@
                       (when-let [nick (get data "nick")] {:user/nick nick}))]
        (println "Adding user for id " id " and data " user-data)
        @(peer/transact (create-database-connection) [user-data]))
-     (alter queues assoc id [])
      id)))
 
 (defn get-user-from-db [database id]
   (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))]
     (construct-user entity)))
-
-(defn all-queues [] @queues)
 
 (defn valid-veto-time? [instant]
   (< (- (now) (* 24 60 60 1000))  (.getTime instant)))
@@ -110,12 +106,6 @@
     (if vetos
       (> 5 (count (filter (fn [[_ instant]] (valid-veto-time? instant)) vetos)))
       true)))
-
-(defn drop-from-queue [database id value]
-  (let [queue ((all-queues) id)
-        [dropped-vetos remainder] (split-with (fn [value] (some #{value} (all-active-vetos database))) queue)]
-    (println "Drop leading vetos " dropped-vetos "for value" value "from user" id "queue:" queue)
-    (alter queues #(assoc % id (vec (rest remainder))))))
 
 (defn find-longest-waiting-users [users user-count]
   (take user-count
