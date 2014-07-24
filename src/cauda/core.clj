@@ -145,6 +145,21 @@
     (println "Found next" value-count "values to be" (take value-count flattened-queue))
     (take value-count flattened-queue)))
 
+(defn pop-value-for-user [database user-id value]
+  (let [result (peer/q '[:find ?q :in $ ?i :where
+                         [?u :user/id ?i]
+                         [?q :value/queuer ?u]
+                         [(missing? $ ?q :value/pop-time)]] database user-id)
+        entities (map (fn [[entity-id]] (peer/entity database entity-id)) result)
+        sorted-entities (sort-by #(:value/queue-time %) entities)
+        entities-with-content (map (fn [entity] [entity (:value/content entity)]) sorted-entities)
+        active-vetos (all-active-vetos database)
+        vetos-to-pop (map
+                      (fn [[entity _]] {:db/id (:db/id entity) :value/pop-time (new java.util.Date)})
+                      (take-while (fn [[entity content]] (some #(= content %) active-vetos)) entities-with-content))
+        update-tx {:db/id (:db/id (nth sorted-entities (count vetos-to-pop))) :value/pop-time (new java.util.Date)}]
+    @(peer/transact (global-connection) (cons update-tx vetos-to-pop))))
+
 (defn find-next-value [database]
   (let [[id value] (first (find-next-values database 1))]
     (if id
@@ -152,7 +167,6 @@
         (dosync
          (swap! last-pop (fn [_] value))
          (pop-value-for-user database id value)
-         ;; (drop-from-queue database id value)
          (update-waiting-timestamp-for-user database id new-timestamp))
         value))))
 
@@ -187,28 +201,6 @@
 
 (defmacro request-handler [& rest]
   `(fn [~'context] ~@rest))
-
-;; (defn get-user-queue [database user-id]
-;;   (let [result (peer/q '[:find ?q :in $ ?i :where
-;;                          [?u :user/id ?i]
-;;                          [?q :value/queuer ?u]
-;;                          [?q :value/content ?c]
-;;                          [(missing? $ ?q :value/pop-time)]] database user-id)
-;;         entities (map (fn [[entity-id]] (peer/entity database entity-id)) result)
-;;         sorted-entities (sort-by #(:value/queue-time %) entities)
-;;         contents (map #(:value/content %) sorted-entities)]
-;;     contents))
-
-(defn pop-value-for-user [database user-id value]
-  (let [result (peer/q '[:find ?q :in $ ?i :where
-                         [?u :user/id ?i]
-                         [?q :value/queuer ?u]
-                         [(missing? $ ?q :value/pop-time)]] database user-id)
-        entities (map (fn [[entity-id]] (peer/entity database entity-id)) result)
-        sorted-entities (sort-by #(:value/queue-time %) entities)
-        value-to-pop (first sorted-entities)
-        update-tx [{:db/id (:db/id value-to-pop) :value/pop-time (new java.util.Date)}]]
-    @(peer/transact (global-connection) update-tx)))
 
 (defresource user-by-id-resource [id]
   json-resource
