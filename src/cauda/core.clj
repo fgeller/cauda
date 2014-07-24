@@ -9,7 +9,6 @@
             [datomic.api :only [q db] :as peer]))
 
 (def user-counter (atom 0))
-(def last-pop (atom nil))
 
 (defn now [] (System/currentTimeMillis))
 
@@ -150,12 +149,23 @@
         update-tx {:db/id (:db/id (nth sorted-entities (count vetos-to-pop))) :value/pop-time (new java.util.Date)}]
     @(peer/transact (global-connection) (cons update-tx vetos-to-pop))))
 
+(defn find-last-pop [database]
+  (let [result (peer/q '[:find ?q ?t ?c :where
+                         [?q :value/content ?c]
+                         [?q :value/pop-time ?t]]
+                       database)
+        [_ _ content] (reduce (fn [[_ pop-time1 content1] [_ pop-time2 content2]]
+                                (if (and pop-time1 (> (.getTime pop-time1) (.getTime pop-time2)))
+                         [_ pop-time1 content1] [_ pop-time2 content2]))
+                     [nil nil nil]
+                     (seq result))]
+    content))
+
 (defn find-next-value [database]
   (let [[id value] (first (find-next-values database 1))]
     (if id
       (let [new-timestamp (when-not (= 1 (count (get-user-queue database id))) (now))]
         (dosync
-         (swap! last-pop (fn [_] value))
          (pop-value-for-user database id value)
          (update-waiting-timestamp-for-user database id new-timestamp))
         value))))
@@ -246,7 +256,7 @@
 (defresource queue-last-pop-resource
   json-resource
   :allowed-methods [:get]
-  :handle-ok (fn [_] {"data" @last-pop}))
+  :handle-ok (fn [_] {"data" (database-> (find-last-pop))}))
 
 (defresource queue-resource
   json-resource

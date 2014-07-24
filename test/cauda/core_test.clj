@@ -107,6 +107,29 @@
       (:status response) => 200
       (:body response) => "[]"))
 
+(fact "last-pop is updated when popping"
+      (add-test-user "gerd")
+      (queue-test-value 1 "tnt")
+      (queue-test-value 1 "acme")
+
+      (let [response (handlers (request :get "/queue/pop"))]
+        (:status response) => 200
+        (:body response) => "{\"data\":\"tnt\"}")
+
+      (let [response (handlers (request :get "/queue/last-pop"))]
+        (:status response) => 200
+        (:body response) => "{\"data\":\"tnt\"}")
+
+      (let [response (handlers (request :get "/queue/pop"))]
+        (:status response) => 200
+        (:body response) => "{\"data\":\"acme\"}")
+
+      (let [response (handlers (request :get "/queue/last-pop"))]
+        (:status response) => 200
+        (:body response) => "{\"data\":\"acme\"}")
+
+      (against-background (after :facts (cleanup))))
+
 (fact "adding a veto means a song is ignored while veto is valid"
       (add-test-user "gerd")
       (let [request (body (content-type (request :post "/users/1/veto") "application/json") "{\"data\": \"acme\"}")
