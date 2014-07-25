@@ -147,9 +147,9 @@
     @(peer/transact (global-connection) (cons update-tx vetos-to-pop))))
 
 (defn find-last-pop [database]
-  (let [value-triples (peer/q '[:find ?q ?t ?c :where [?q :value/content ?c] [?q :value/pop-time ?t]] database)
-        values (map (fn [[_ pop-time content]] [(.getTime pop-time) content]) value-triples)]
-    (second (first (sort-by first > values)))))
+  (let [last-pop-time-attribute (last (peer/datoms database :avet :value/pop-time))
+        last-pop (:value/content (peer/entity database (:e last-pop-time-attribute)))]
+    last-pop))
 
 (defn find-next-value [database]
   (let [[id value] (first (find-next-values database 1))]
