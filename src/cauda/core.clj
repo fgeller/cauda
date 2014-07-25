@@ -14,13 +14,13 @@
   {(:user/id entity) (merge {:nick (:user/nick entity)}
                             (when-let [waiting-since (:user/waiting-since entity)] {:waitingSince waiting-since}))})
 
-(defn all-users-from-db [database]
+(defn all-users [database]
   (into {}
         (map construct-user
              (map (fn [[entity-id]] (peer/entity database entity-id))
                   (peer/q '[:find ?u :where [?u :user/id]] database)))))
 
-(defn add-user-to-db [database data]
+(defn add-user [database data]
   (dosync
    (let [id (+ 1 (count (peer/q '[:find ?u :where [?u :user/id]] database)))]
      (let [user-data (merge
@@ -30,14 +30,14 @@
        @(peer/transact (create-database-connection) [user-data]))
      id)))
 
-(defn get-user-from-db [database id]
+(defn get-user [database id]
   (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))]
     (construct-user entity)))
 
 (defn valid-veto-time? [instant]
   (< (- (now) (* 24 60 60 1000))  (.getTime instant)))
 
-(defn vetos-for-user-from-db [database user-id]
+(defn vetos-for-user [database user-id]
   (let [[user-entity-id]  (first (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database user-id))
         vetos (peer/q '[:find ?c ?t :in $ ?i :where [?v :veto/user ?u] [?v :veto/content ?c] [?v :veto/time ?t]] database user-entity-id)]
     (into {} vetos)))
@@ -77,13 +77,13 @@
 
 (defn queue-for-user [database id data]
   (queue-value-for-user database id data)
-  (if-not (:waitingSince (get-user-from-db database id))
+  (if-not (:waitingSince (get-user database id))
     (update-waiting-timestamp-for-user database id (now)))
-  (println "Pushed" data "into user" id "waiting since" (:waitingSince (get-user-from-db database id)) "with queue:" (get-user-queue database id)))
+  (println "Pushed" data "into user" id "waiting since" (:waitingSince (get-user database id)) "with queue:" (get-user-queue database id)))
 
 (defn apply-users-veto [database user-id target-value]
-  (let [vetoing-user (get-user-from-db database user-id)
-        vetos (vetos-for-user-from-db database user-id)]
+  (let [vetoing-user (get-user database user-id)
+        vetos (vetos-for-user database user-id)]
     (when (or  (empty? vetos) (nil? (vetos target-value)) (valid-veto-time? (vetos target-value)))
       (let [veto-tx {:db/id (peer/tempid :db.part/user) :veto/content target-value :veto/user user-id :veto/time (new java.util.Date)}]
         @(peer/transact (create-database-connection) [veto-tx])))))
@@ -98,7 +98,7 @@
     @(peer/transact (create-database-connection) [user-data])))
 
 (defn veto-allowed-for-user? [database user-id]
-  (let [vetos (vetos-for-user-from-db database user-id)]
+  (let [vetos (vetos-for-user database user-id)]
     (if vetos
       (> 5 (count (filter (fn [[_ instant]] (valid-veto-time? instant)) vetos)))
       true)))
@@ -115,7 +115,7 @@
         (flatten-user-queues (dec count) users next-queues next-acc))))
 
 (defn find-next-values [database value-count]
-  (let [longest-waiting-users (find-longest-waiting-users (all-users-from-db database) (count (all-users-from-db database)))
+  (let [longest-waiting-users (find-longest-waiting-users (all-users database) (count (all-users database)))
         sorted-users-queues (map (fn [id] [id (get-user-queue database id)]) longest-waiting-users)
         active-vetos (all-active-vetos database)
         filtered-users-queues (zipmap longest-waiting-users
@@ -203,7 +203,7 @@
   json-resource
   :allowed-methods [:get]
   :exists? (request-handler
-             (let [user (database-> (get-user-from-db id))]
+             (let [user (database-> (get-user id))]
                (when user {::user user})))
   :handle-ok ::user)
 
@@ -212,10 +212,10 @@
   :allowed-methods [:get :post]
   :post! (request-handler
           (let [data (::data context)
-                new-id (database-> (add-user-to-db data))]
+                new-id (database-> (add-user data))]
             (when new-id {::id new-id})))
   :handle-ok (request-handler
-              (database-> (all-users-from-db))))
+              (database-> (all-users))))
 
 (defresource vetos-resource
   json-resource
@@ -226,7 +226,7 @@
   json-resource
   :allowed-methods [:get :post]
   :exists? (request-handler
-            (let [user (database-> (get-user-from-db id))]
+            (let [user (database-> (get-user id))]
               (when user {::user user})))
   :post! (request-handler
           (database-> (queue-for-user id ((::data context) "data"))))
@@ -237,7 +237,7 @@
   json-resource
   :allowed-methods [:post]
   :exists? (request-handler
-            (when-let [user (database-> (get-user-from-db id))] {::user user}))
+            (when-let [user (database-> (get-user id))] {::user user}))
   :malformed? #(or
                 (not (database-> (veto-allowed-for-user? id)))
                 (parse-json % ::data))
