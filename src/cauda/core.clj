@@ -147,16 +147,9 @@
     @(peer/transact (global-connection) (cons update-tx vetos-to-pop))))
 
 (defn find-last-pop [database]
-  (let [result (peer/q '[:find ?q ?t ?c :where
-                         [?q :value/content ?c]
-                         [?q :value/pop-time ?t]]
-                       database)
-        [_ _ content] (reduce (fn [[_ pop-time1 content1] [_ pop-time2 content2]]
-                                (if (and pop-time1 (> (.getTime pop-time1) (.getTime pop-time2)))
-                         [_ pop-time1 content1] [_ pop-time2 content2]))
-                     [nil nil nil]
-                     (seq result))]
-    content))
+  (let [value-triples (peer/q '[:find ?q ?t ?c :where [?q :value/content ?c] [?q :value/pop-time ?t]] database)
+        values (map (fn [[_ pop-time content]] [(.getTime pop-time) content]) value-triples)]
+    (second (first (sort-by first > values)))))
 
 (defn find-next-value [database]
   (let [[id value] (first (find-next-values database 1))]
