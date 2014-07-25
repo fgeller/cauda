@@ -115,7 +115,8 @@
         (flatten-user-queues (dec count) users next-queues next-acc))))
 
 (defn find-next-values [database value-count]
-  (let [longest-waiting-users (find-longest-waiting-users (all-users database) (count (all-users database)))
+  (let [users (all-users database)
+        longest-waiting-users (find-longest-waiting-users users (count users))
         sorted-users-queues (map (fn [id] [id (get-user-queue database id)]) longest-waiting-users)
         active-vetos (all-active-vetos database)
         filtered-users-queues (zipmap longest-waiting-users
@@ -234,10 +235,10 @@
                 (let [database (read-database (global-connection))
                       parse-result (or (not (veto-allowed-for-user? database id))
                                        (parse-json context ::data))
-                      augmented (if (and (vector? parse-result) (not (first parse-result)))
-                                  [false (merge (second parse-result) {::database database})]
-                                  parse-result)]
-                  augmented))
+                      augmented-with-database (if (and (vector? parse-result) (not (first parse-result)))
+                                                [false (merge (second parse-result) {::database database})]
+                                                parse-result)]
+                  augmented-with-database))
   :exists? (with-context
              (when-let [user (get-user (::database context) id)] {::user user}))
   :post! (with-context
