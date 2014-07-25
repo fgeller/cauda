@@ -8,8 +8,6 @@
             [clj-http.client :as client]
             [datomic.api :only [q db] :as peer]))
 
-(def user-counter (atom 0))
-
 (defn now [] (System/currentTimeMillis))
 
 (defn construct-user [entity]
@@ -20,12 +18,11 @@
   (into {}
         (map construct-user
              (map (fn [[entity-id]] (peer/entity database entity-id))
-                  (peer/q `[:find ?u :where [?u :user/id]] database)))))
+                  (peer/q '[:find ?u :where [?u :user/id]] database)))))
 
 (defn add-user-to-db [database data]
   (dosync
-   (swap! user-counter inc)
-   (let [id @user-counter]
+   (let [id (+ 1 (count (peer/q '[:find ?u :where [?u :user/id]] database)))]
      (let [user-data (merge
                       {:db/id (peer/tempid :db.part/user) :user/id id}
                       (when-let [nick (get data "nick")] {:user/nick nick}))]

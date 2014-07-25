@@ -9,8 +9,7 @@
 (defn cleanup []
   (dosync
    (delete-database)
-   (setup-database)
-   (swap! user-counter (fn [_] 0))))
+   (setup-database)))
 
 (defn add-test-user [nick]
   (let [request (body (content-type (request :post "/users") "application/json") (format "{\"nick\": \"%s\"}" nick))]
