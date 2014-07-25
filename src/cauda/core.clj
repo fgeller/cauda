@@ -204,11 +204,11 @@
   json-resource
   :allowed-methods [:get :post]
   :post! (with-context
-          (let [data (::data context)
-                new-id (database-> (add-user data))]
-            (when new-id {::id new-id})))
+           (let [data (::data context)
+                 new-id (database-> (add-user data))]
+             (when new-id {::id new-id})))
   :handle-ok (with-context
-              (database-> (all-users))))
+               (database-> (all-users))))
 
 (defresource vetos-resource
   json-resource
@@ -219,48 +219,48 @@
   json-resource
   :allowed-methods [:get :post]
   :exists? (with-context
-            (let [database (read-database (global-connection))
-                  user (get-user database id)]
-              [user {::user user ::database database}]))
+             (let [database (read-database (global-connection))
+                   user (get-user database id)]
+               [user {::user user ::database database}]))
   :post! (with-context
-          (queue-for-user (::database context) id ((::data context) "data")))
+           (queue-for-user (::database context) id ((::data context) "data")))
   :handle-ok (with-context
-              (get-user-queue (::database context) id)))
+               (get-user-queue (::database context) id)))
 
 (defresource users-veto-resource [id]
   json-resource
   :allowed-methods [:post]
   :malformed? (with-context
-               (let [database (read-database (global-connection))
-                     parse-result (or (not (veto-allowed-for-user? database id))
-                                      (parse-json context ::data))
-                     augmented (if (and (vector? parse-result) (not (first parse-result)))
-                                 [false (merge (second parse-result) {::database database})]
-                                 parse-result)]
-                 augmented))
+                (let [database (read-database (global-connection))
+                      parse-result (or (not (veto-allowed-for-user? database id))
+                                       (parse-json context ::data))
+                      augmented (if (and (vector? parse-result) (not (first parse-result)))
+                                  [false (merge (second parse-result) {::database database})]
+                                  parse-result)]
+                  augmented))
   :exists? (with-context
-            (when-let [user (get-user (::database context) id)] {::user user}))
+             (when-let [user (get-user (::database context) id)] {::user user}))
   :post! (with-context
-          (apply-users-veto (::database context) id ((::data context) "data"))))
+           (apply-users-veto (::database context) id ((::data context) "data"))))
 
 (defresource queue-pop-resource
   json-resource
   :allowed-methods [:get]
   :handle-ok (with-context
-              {"data" (database-> (find-next-value))}))
+               {"data" (database-> (find-next-value))}))
 
 (defresource queue-last-pop-resource
   json-resource
   :allowed-methods [:get]
   :handle-ok (with-context
-              {"data" (database-> (find-last-pop))}))
+               {"data" (database-> (find-last-pop))}))
 
 (defresource queue-resource
   json-resource
   :allowed-methods [:get]
   :handle-ok (with-context
-              {"data" (map (fn [[user-id value]]  {user-id value})
-                           (database-> (find-next-values 5)))}))
+               {"data" (map (fn [[user-id value]]  {user-id value})
+                            (database-> (find-next-values 5)))}))
 
 (defroutes app-routes
   (ANY "/queue" [] queue-resource)
