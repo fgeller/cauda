@@ -219,23 +219,29 @@
   json-resource
   :allowed-methods [:get :post]
   :exists? (request-handler
-            (let [user (database-> (get-user id))]
-              (when user {::user user})))
+            (let [database (read-database (global-connection))
+                  user (get-user database id)]
+              [user {::user user ::database database}]))
   :post! (request-handler
-          (database-> (queue-for-user id ((::data context) "data"))))
+          (queue-for-user (::database context) id ((::data context) "data")))
   :handle-ok (request-handler
-              (database-> (get-user-queue id))))
+              (get-user-queue (::database context) id)))
 
 (defresource users-veto-resource [id]
   json-resource
   :allowed-methods [:post]
+  :malformed? (request-handler
+               (let [database (read-database (global-connection))
+                     parse-result (or (not (veto-allowed-for-user? database id))
+                                      (parse-json context ::data))
+                     augmented (if (and (vector? parse-result) (not (first parse-result)))
+                                 [false (merge (second parse-result) {::database database})]
+                                 parse-result)]
+                 augmented))
   :exists? (request-handler
-            (when-let [user (database-> (get-user id))] {::user user}))
-  :malformed? #(or
-                (not (database-> (veto-allowed-for-user? id)))
-                (parse-json % ::data))
+            (when-let [user (get-user (::database context) id)] {::user user}))
   :post! (request-handler
-          (database-> (apply-users-veto id ((::data context) "data")))))
+          (apply-users-veto (::database context) id ((::data context) "data"))))
 
 (defresource queue-pop-resource
   json-resource
@@ -246,13 +252,15 @@
 (defresource queue-last-pop-resource
   json-resource
   :allowed-methods [:get]
-  :handle-ok (fn [_] {"data" (database-> (find-last-pop))}))
+  :handle-ok (request-handler
+              {"data" (database-> (find-last-pop))}))
 
 (defresource queue-resource
   json-resource
   :allowed-methods [:get]
-  :handle-ok (fn [_] {"data" (map (fn [[user-id value]]  {user-id value})
-                                  (database-> (find-next-values 5)))}))
+  :handle-ok (request-handler
+              {"data" (map (fn [[user-id value]]  {user-id value})
+                           (database-> (find-next-values 5)))}))
 
 (defroutes app-routes
   (ANY "/queue" [] queue-resource)
