@@ -189,13 +189,13 @@
    :known-content-type? #(check-content-type % ["application/json"])
    :malformed? #(parse-json % ::data)})
 
-(defmacro request-handler [& rest]
+(defmacro with-context [& rest]
   `(fn [~'context] ~@rest))
 
 (defresource user-by-id-resource [id]
   json-resource
   :allowed-methods [:get]
-  :exists? (request-handler
+  :exists? (with-context
              (let [user (database-> (get-user id))]
                (when user {::user user})))
   :handle-ok ::user)
@@ -203,34 +203,34 @@
 (defresource users-resource
   json-resource
   :allowed-methods [:get :post]
-  :post! (request-handler
+  :post! (with-context
           (let [data (::data context)
                 new-id (database-> (add-user data))]
             (when new-id {::id new-id})))
-  :handle-ok (request-handler
+  :handle-ok (with-context
               (database-> (all-users))))
 
 (defresource vetos-resource
   json-resource
   :allowed-methods [:get]
-  :handle-ok (request-handler (database-> (all-active-vetos))))
+  :handle-ok (with-context (database-> (all-active-vetos))))
 
 (defresource users-queue-resource [id]
   json-resource
   :allowed-methods [:get :post]
-  :exists? (request-handler
+  :exists? (with-context
             (let [database (read-database (global-connection))
                   user (get-user database id)]
               [user {::user user ::database database}]))
-  :post! (request-handler
+  :post! (with-context
           (queue-for-user (::database context) id ((::data context) "data")))
-  :handle-ok (request-handler
+  :handle-ok (with-context
               (get-user-queue (::database context) id)))
 
 (defresource users-veto-resource [id]
   json-resource
   :allowed-methods [:post]
-  :malformed? (request-handler
+  :malformed? (with-context
                (let [database (read-database (global-connection))
                      parse-result (or (not (veto-allowed-for-user? database id))
                                       (parse-json context ::data))
@@ -238,27 +238,27 @@
                                  [false (merge (second parse-result) {::database database})]
                                  parse-result)]
                  augmented))
-  :exists? (request-handler
+  :exists? (with-context
             (when-let [user (get-user (::database context) id)] {::user user}))
-  :post! (request-handler
+  :post! (with-context
           (apply-users-veto (::database context) id ((::data context) "data"))))
 
 (defresource queue-pop-resource
   json-resource
   :allowed-methods [:get]
-  :handle-ok (request-handler
+  :handle-ok (with-context
               {"data" (database-> (find-next-value))}))
 
 (defresource queue-last-pop-resource
   json-resource
   :allowed-methods [:get]
-  :handle-ok (request-handler
+  :handle-ok (with-context
               {"data" (database-> (find-last-pop))}))
 
 (defresource queue-resource
   json-resource
   :allowed-methods [:get]
-  :handle-ok (request-handler
+  :handle-ok (with-context
               {"data" (map (fn [[user-id value]]  {user-id value})
                            (database-> (find-next-values 5)))}))
 
