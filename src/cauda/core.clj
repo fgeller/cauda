@@ -201,6 +201,9 @@
         (.printStackTrace e)
         {:message (format "IOException: " (.getMessage e))}))))
 
+(defmacro with-context [& rest]
+  `(fn [~'context] ~@rest))
+
 (def json-resource
   {:service-available? (with-context
                          (log "Received request" (:request context))
@@ -208,9 +211,6 @@
    :available-media-types ["application/json"]
    :known-content-type? #(check-content-type % ["application/json"])
    :malformed? #(parse-json % ::data)})
-
-(defmacro with-context [& rest]
-  `(fn [~'context] ~@rest))
 
 (defresource user-by-id-resource [id]
   json-resource

@@ -12,9 +12,10 @@
       (wrap-params)
       (wrap-reload '(cauda.core cauda.app))))
 
-(defn boot []
-  (run-jetty #'handlers {:port 3000 :join? false}))
+(defn boot [port]
+  (run-jetty #'handlers {:port port :join? false}))
 
 (defn -main [& args]
-  (log "Starting cauda on port 3000.")
-  (boot))
+  (let [port (if (empty? args) 3000 (read-string (first args)))]
+    (log "Starting cauda on port" port)
+    (boot port)))
