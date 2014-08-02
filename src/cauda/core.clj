@@ -3,12 +3,31 @@
   (:require [liberator.core :refer [resource defresource log!]]
             [compojure.core :refer [defroutes ANY]]
             [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.data.json :as json]
-            [clojure.tools.logging :as log]
+            [clj-time.core :as joda]
+            [clj-time.format :as joda-format]
+            [clj-time.coerce :as joda-coerce]
+            [clj-time.local :as joda-local]
             [clj-http.client :as client]
             [datomic.api :only [q db] :as peer]))
 
+(def log-date-formatter (joda-format/formatters :date-time))
+(defn log-date []
+  (joda-format/unparse log-date-formatter (joda-local/local-now)))
+
+(defn log [& args]
+  (let [concat-args (defn c [as acc]
+                      (if (empty? as)
+                        (string/trim acc)
+                        (recur (rest as) (str acc " " (first as)))))
+        log-message (format "%s - %s" (log-date) (concat-args args ""))]
+    (println log-message)))
+
 (defn now [] (System/currentTimeMillis))
+
+(defn valid-veto-time? [instant]
+  (< (- (now) (* 24 60 60 1000))  (.getTime instant)))
 
 (defn construct-user [entity]
   {(:user/id entity) (merge {:nick (:user/nick entity)}
@@ -26,16 +45,13 @@
      (let [user-data (merge
                       {:db/id (peer/tempid :db.part/user) :user/id id}
                       (when-let [nick (get data "nick")] {:user/nick nick}))]
-       (println "Adding user for id " id " and data " user-data)
+       (log "Adding user for id " id " and data " user-data)
        @(peer/transact (create-database-connection) [user-data]))
      id)))
 
 (defn get-user [database id]
   (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))]
     (construct-user entity)))
-
-(defn valid-veto-time? [instant]
-  (< (- (now) (* 24 60 60 1000))  (.getTime instant)))
 
 (defn vetos-for-user [database user-id]
   (let [[user-entity-id]  (first (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database user-id))
@@ -56,7 +72,7 @@
     @(peer/transact (global-connection) update-tx)))
 
 (defn update-waiting-timestamp-for-user [database id timestamp]
-  (println "Updating waitingSince to" timestamp "for user" id)
+  (log "Updating waitingSince to" (new java.util.Date timestamp) "for user" id)
   (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))
         entity-id (:db/id entity)
         user-data (if timestamp
@@ -79,7 +95,7 @@
   (queue-value-for-user database id data)
   (if-not (:waitingSince (get-user database id))
     (update-waiting-timestamp-for-user database id (now)))
-  (println "Pushed" data "into user" id "waiting since" (:waitingSince (get-user database id)) "with queue:" (get-user-queue database id)))
+  (log "Pushed" data "into user" id "waiting since" (:waitingSince (get-user database id)) "with queue:" (into [] (get-user-queue database id))))
 
 (defn apply-users-veto [database user-id target-value]
   (let [vetoing-user (get-user database user-id)
@@ -89,7 +105,7 @@
         @(peer/transact (create-database-connection) [veto-tx])))))
 
 (defn update-waiting-timestamp-for-user [database id timestamp]
-  (println "Updating waitingSince to" timestamp "for user" id)
+  (log "Updating waitingSince to" (joda-coerce/from-long timestamp) "for user" id)
   (let [entity (peer/entity database (ffirst (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database id)))
         entity-id (:db/id entity)
         user-data (if timestamp
@@ -129,7 +145,7 @@
                                                      filtered-users-queues
                                                      nil)
         flattened-queue (filter (fn [[_ value]] value) padded-flattened-queues)]
-    (println "Found next" value-count "values to be" (take value-count flattened-queue))
+    (log "Found next" value-count "values to be" (into [] (take value-count flattened-queue)))
     (take value-count flattened-queue)))
 
 (defn pop-value-for-user [database user-id value]
@@ -186,7 +202,10 @@
         {:message (format "IOException: " (.getMessage e))}))))
 
 (def json-resource
-  {:available-media-types ["application/json"]
+  {:service-available? (with-context
+                         (log "Received request" (:request context))
+                         true)
+   :available-media-types ["application/json"]
    :known-content-type? #(check-content-type % ["application/json"])
    :malformed? #(parse-json % ::data)})
 

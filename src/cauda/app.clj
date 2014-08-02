@@ -16,4 +16,5 @@
   (run-jetty #'handlers {:port 3000 :join? false}))
 
 (defn -main [& args]
+  (log "Starting cauda on port 3000.")
   (boot))
