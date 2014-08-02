@@ -77,6 +77,136 @@
   :db/valueType :db.type/instant
   :db/cardinality :db.cardinality/one
   :db.install/_attribute :db.part/db
+  },
+
+;; request
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :request/uuid
+  :db/valueType :db.type/instant
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :request/method
+  :db/valueType :db.type/string
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :request/body
+  :db/valueType :db.type/string
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :request/scheme
+  :db/valueType :db.type/string
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :request/server-name
+  :db/valueType :db.type/string
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :request/server-port
+  :db/valueType :db.type/long
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :request/uri
+  :db/valueType :db.type/string
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :request/content-type
+  :db/valueType :db.type/string
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :request/time
+  :db/valueType :db.type/instant
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :request/header
+  :db/valueType :db.type/ref
+  :db/cardinality :db.cardinality/many
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :request/param
+  :db/valueType :db.type/ref
+  :db/cardinality :db.cardinality/many
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :request/route-param
+  :db/valueType :db.type/ref
+  :db/cardinality :db.cardinality/many
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :request/form-param
+  :db/valueType :db.type/ref
+  :db/cardinality :db.cardinality/many
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :request/query-param
+  :db/valueType :db.type/ref
+  :db/cardinality :db.cardinality/many
+  :db.install/_attribute :db.part/db
+  },
+
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :param/request
+  :db/valueType :db.type/ref
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :param/type
+  :db/valueType :db.type/string
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :param/name
+  :db/valueType :db.type/string
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
+  },
+ {
+  :db/id #db/id[:db.part/db]
+  :db/ident :param/value
+  :db/valueType :db.type/string
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db
   }
+
 
 ]

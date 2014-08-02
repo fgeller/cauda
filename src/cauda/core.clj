@@ -193,7 +193,7 @@
 (defn parse-json [context key]
   (when (#{:put :post} (get-in context [:request :request-method]))
     (try
-      (if-let [body (body-as-string context)]
+      (if-let [body (:body-string context)]
         (let [data (json/read-str body)]
           [false {key data}])
         {:message "No body"})
@@ -206,8 +206,10 @@
 
 (def json-resource
   {:service-available? (with-context
-                         (log "Received request" (:request context))
-                         true)
+                         (let [body-string (body-as-string context)]
+                           (log "Received request" (:request context))
+                           (log "Received request-body" body-string)
+                           {:body-string body-string}))
    :available-media-types ["application/json"]
    :known-content-type? #(check-content-type % ["application/json"])
    :malformed? #(parse-json % ::data)})
