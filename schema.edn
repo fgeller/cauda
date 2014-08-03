@@ -83,7 +83,7 @@
  {
   :db/id #db/id[:db.part/db]
   :db/ident :request/uuid
-  :db/valueType :db.type/instant
+  :db/valueType :db.type/uuid
   :db/cardinality :db.cardinality/one
   :db.install/_attribute :db.part/db
   },
@@ -99,6 +99,7 @@
   :db/ident :request/body
   :db/valueType :db.type/string
   :db/cardinality :db.cardinality/one
+  :db/fulltext true
   :db.install/_attribute :db.part/db
   },
  {
