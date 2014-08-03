@@ -17,7 +17,7 @@
   (joda-format/unparse log-date-formatter (joda-local/local-now)))
 
 (defn log [& args]
-  (let [concat-args (defn c [as acc]
+  (let [concat-args (defn iter [as acc]
                       (if (empty? as)
                         (string/trim acc)
                         (recur (rest as) (str acc " " (first as)))))
