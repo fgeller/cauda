@@ -1,5 +1,6 @@
 (ns cauda.app
-  (:use cauda.core)
+  (:use cauda.core
+        cauda.store)
   (:require [ring.adapter.jetty :refer [run-jetty]]
             [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.jsonp :refer [wrap-json-with-padding]]
@@ -16,6 +17,9 @@
   (run-jetty #'handlers {:port port :join? false}))
 
 (defn -main [& args]
-  (let [port (if (empty? args) 3000 (read-string (first args)))]
-    (log "Starting cauda on port" port)
+  (let [port (or (and (not (empty? args)) (read-string (first args)))
+                 (when-let [env-port (System/getenv "CAUDA_PORT")]
+                   (read-string env-port))
+                 3000)]
+    (log "Starting cauda on port" port "connecting to" datomic-uri)
     (boot port)))

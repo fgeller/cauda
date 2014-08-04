@@ -21,7 +21,7 @@
                       (if (empty? as)
                         (string/trim acc)
                         (recur (rest as) (str acc " " (first as)))))
-        log-message (format "%s - %s" (log-date) (concat-args args ""))]
+        log-message (format "%s [%s] - %s" (log-date) datomic-uri (concat-args args ""))]
     (println log-message)))
 
 (defn now [] (System/currentTimeMillis))

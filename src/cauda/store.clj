@@ -1,7 +1,9 @@
 (ns cauda.store
   (:require [datomic.api :only [q db] :as peer]))
 
-(def datomic-uri "datomic:mem://cauda")
+(def datomic-uri (or (System/getenv "CAUDA_DB_URI")
+                     "datomic:mem://cauda-test"))
+
 (defn shutdown-database [] (peer/shutdown true))
 (defn delete-database [] (peer/delete-database datomic-uri))
 (defn create-database [] (peer/create-database datomic-uri))
