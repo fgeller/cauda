@@ -207,20 +207,24 @@
 (def json-resource
   {:service-available? (with-context
                          (let [body-string (body-as-string context)
-                               request-uuid (java.util.UUID/randomUUID)
                                request (:request context)
                                request-entity-id (peer/tempid :db.part/user)
-                               headers-txs (map (fn [[name value]] {:db/id (peer/tempid :db.part/user) :param/request request-entity-id :param/type "header" :param/name (str name) :param/value value})
-                                                (:headers request))
-                               form-params-txs (map (fn [[name value]] {:db/id (peer/tempid :db.part/user) :param/request request-entity-id :param/type "form-param" :param/name (str name) :param/value value})
-                                                    (:form-params request))
-                               query-params-txs (map (fn [[name value]] {:db/id (peer/tempid :db.part/user) :param/request request-entity-id :param/type "query-param" :param/name (str name) :param/value value})
-                                                     (:query-params request))
-                               params-txs (map (fn [[name value]] {:db/id (peer/tempid :db.part/user) :param/request request-entity-id :param/type "param" :param/name (str name) :param/value value})
-                                               (:params request))
+                               param-transactions (fn [type params]
+                                                    (map (fn [[name value]]
+                                                           {:db/id (peer/tempid :db.part/user)
+                                                            :param/request request-entity-id
+                                                            :param/type type
+                                                            :param/name (str name)
+                                                            :param/value value
+                                                            })
+                                                         params))
+                               header-txs (param-transactions "header" (:headers request))
+                               form-param-txs (param-transactions "form-param" (:form-params request))
+                               query-param-txs (param-transactions "query-param" (:query-params request))
+                               params-txs (param-transactions "param" (:params request))
                                request-tx (merge  {
                                                    :db/id request-entity-id
-                                                   :request/uuid request-uuid
+                                                   :request/uuid (java.util.UUID/randomUUID)
                                                    :request/time (new java.util.Date)
                                                    :request/method (str (:request-method request))
                                                    :request/scheme (str (:scheme request))
@@ -231,8 +235,7 @@
                                                   (when-let [content-type (:content-type request)] {:request/content-type content-type})
                                                   (when body-string {:request/body body-string}))
 
-                               request-transactions (vec (concat [request-tx] headers-txs form-params-txs query-params-txs params-txs))
-                               ]
+                               request-transactions (vec (concat [request-tx] header-txs form-param-txs query-param-txs param-txs))]
                            (log "Received request" request)
                            ;; do we need the @ here?
                            @(peer/transact (global-connection) request-transactions)
