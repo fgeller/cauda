@@ -8,7 +8,7 @@
                  [ring.middleware.jsonp "0.1.4"]
                  [org.clojure/data.json "0.2.4"]
                  [clj-http "0.9.1"]
-                 [com.datomic/datomic-free "0.9.4766.11"]
+                 [com.datomic/datomic-free "0.9.4815.12"]
                  [clj-time "0.7.0"]]
 
   :profiles
