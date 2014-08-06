@@ -204,41 +204,52 @@
 (defmacro with-context [& rest]
   `(fn [~'context] ~@rest))
 
+(defn transactions-for-request-params [request-entity-id type params]
+  (map (fn [[name value]]
+         {
+          :db/id (peer/tempid :db.part/user)
+          :param/request request-entity-id
+          :param/type type
+          :param/name (str name)
+          :param/value value
+          })
+       params))
+
+(defn transaction-for-request [request-entity-id request body-string]
+  (merge  {
+           :db/id request-entity-id
+           :request/uuid (java.util.UUID/randomUUID)
+           :request/time (new java.util.Date)
+           :request/method (str (:request-method request))
+           :request/scheme (str (:scheme request))
+           :request/server-name (:server-name request)
+           :request/server-port (:server-port request)
+           :request/uri (:uri request)
+           }
+          (when-let [content-type (:content-type request)] {:request/content-type content-type})
+          (when body-string {:request/body body-string})))
+
+(defn save-request [request body-string]
+  (let [request-entity-id (peer/tempid :db.part/user)
+        header-txs (transactions-for-request-params request-entity-id "header" (:headers request))
+        form-param-txs (transactions-for-request-params request-entity-id "form-param" (:form-params request))
+        query-param-txs (transactions-for-request-params request-entity-id "query-param" (:query-params request))
+        param-txs (transactions-for-request-params request-entity-id "param" (:params request))
+        request-tx (transaction-for-request request-entity-id request body-string)
+        request-transactions (vec (concat [request-tx]
+                                          header-txs
+                                          form-param-txs
+                                          query-param-txs
+                                          param-txs))]
+    ;; do we need the @ here?
+    @(peer/transact (global-connection) request-transactions)))
+
 (def json-resource
   {:service-available? (with-context
                          (let [body-string (body-as-string context)
-                               request (:request context)
-                               request-entity-id (peer/tempid :db.part/user)
-                               param-transactions (fn [type params]
-                                                    (map (fn [[name value]]
-                                                           {:db/id (peer/tempid :db.part/user)
-                                                            :param/request request-entity-id
-                                                            :param/type type
-                                                            :param/name (str name)
-                                                            :param/value value
-                                                            })
-                                                         params))
-                               header-txs (param-transactions "header" (:headers request))
-                               form-param-txs (param-transactions "form-param" (:form-params request))
-                               query-param-txs (param-transactions "query-param" (:query-params request))
-                               params-txs (param-transactions "param" (:params request))
-                               request-tx (merge  {
-                                                   :db/id request-entity-id
-                                                   :request/uuid (java.util.UUID/randomUUID)
-                                                   :request/time (new java.util.Date)
-                                                   :request/method (str (:request-method request))
-                                                   :request/scheme (str (:scheme request))
-                                                   :request/server-name (:server-name request)
-                                                   :request/server-port (:server-port request)
-                                                   :request/uri (:uri request)
-                                                   }
-                                                  (when-let [content-type (:content-type request)] {:request/content-type content-type})
-                                                  (when body-string {:request/body body-string}))
-
-                               request-transactions (vec (concat [request-tx] header-txs form-param-txs query-param-txs param-txs))]
+                               request (:request context)]
+                           (save-request request body-string)
                            (log "Received request" request)
-                           ;; do we need the @ here?
-                           @(peer/transact (global-connection) request-transactions)
                            {:body-string body-string}))
    :available-media-types ["application/json"]
    :known-content-type? #(check-content-type % ["application/json"])
