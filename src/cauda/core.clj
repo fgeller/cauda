@@ -295,12 +295,16 @@
   :allowed-methods [:post]
   :malformed? (with-context
                 (let [database (read-database (global-connection))
-                      parse-result (or (not (veto-allowed-for-user? database id))
-                                       (parse-json context ::data))
-                      augmented-with-database (if (and (vector? parse-result) (not (first parse-result)))
-                                                [false (merge (second parse-result) {::database database})]
-                                                parse-result)]
-                  augmented-with-database))
+                      veto-allowed? (veto-allowed-for-user? database id)
+                      parse-result (parse-json context ::data)]
+                  (cond (not veto-allowed?)
+                        [true {::database database}]
+
+                        (vector? parse-result)
+                        [(first parse-result) (merge (second parse-result) {::database database})]
+
+                        true
+                        parse-result)))
   :exists? (with-context
              (when-let [user (get-user (::database context) id)] {::user user}))
   :post! (with-context
