@@ -193,7 +193,7 @@
 (defn parse-json [context key]
   (when (#{:put :post} (get-in context [:request :request-method]))
     (try
-      (if-let [body (:body-string context)]
+      (if-let [body (::body-string context)]
         (let [data (json/read-str body)]
           [false {key data}])
         {:message "No body"})
@@ -250,7 +250,7 @@
                                request (:request context)]
                            (save-request request body-string)
                            (log "Received request" request)
-                           {:body-string body-string}))
+                           {::body-string body-string}))
    :available-media-types ["application/json"]
    :known-content-type? #(check-content-type % ["application/json"])
    :malformed? #(parse-json % ::data)})
