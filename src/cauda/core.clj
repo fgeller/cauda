@@ -31,7 +31,7 @@
 
 (defn construct-user [entity]
   {(:user/id entity) (merge {:nick (:user/nick entity)}
-                            (when-let [waiting-since (:user/waiting-since entity)] {:waitingSince waiting-since}))})
+                            (when-let [waiting-since (:user/waiting-since entity)] {:waitingSince (.getTime waiting-since)}))})
 
 (defn all-users [database]
   (into {}
