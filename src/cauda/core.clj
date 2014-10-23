@@ -67,9 +67,12 @@
               (peer/q `[:find ?vc ?vt :where [?v :veto/content ?vc] [?v :veto/time ?vt]] database))))))
 
 (defn queue-value-for-user [database user-id value]
-  (let [[user-entity-id] (first (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database user-id))
-        update-tx [{:db/id (peer/tempid :db.part/user) :value/content value :value/queuer user-entity-id :value/queue-time (new java.util.Date)}]]
-    @(peer/transact (global-connection) update-tx)))
+  (let [[user-entity-id] (first (peer/q '[:find ?u :in $ ?i :where [?u :user/id ?i]] database user-id))]
+    (if user-entity-id
+      (let [update-tx [{:db/id (peer/tempid :db.part/user) :value/content value :value/queuer (or user-entity-id 0) :value/queue-time (new java.util.Date)}]]
+        (log "About to push transaction", update-tx)
+        @(peer/transact (global-connection) update-tx))
+      (log "Couldn't find user-entity-id for user-id" user-id ". Did not queue" value))))
 
 (defn update-waiting-timestamp-for-user [database id timestamp]
   (log "Updating waitingSince to" (new java.util.Date timestamp) "for user" id)
