@@ -3,6 +3,7 @@
   (:require [liberator.core :refer [resource defresource log!]]
             [compojure.core :refer [defroutes ANY]]
             [clojure.java.io :as io]
+            [clojure.stacktrace :refer [print-stack-trace]]
             [clojure.string :as string]
             [clojure.data.json :as json]
             [clj-time.core :as joda]
@@ -255,6 +256,9 @@
                            (log "Received request" request)
                            {::body-string body-string}))
    :available-media-types ["application/json"]
+   :handle-exception (fn [context]
+                       (print-stack-trace (:exception context))
+                       (log "Exception: " (:exception context)))
    :known-content-type? #(check-content-type % ["application/json"])
    :malformed? #(parse-json % ::data)})
 
